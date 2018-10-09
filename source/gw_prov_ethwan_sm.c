@@ -243,7 +243,7 @@ static int ethGetPHYRate
             case CCSP_HAL_ETHSW_LINK_Auto:
             {
 	        GWPROVETHWANLOG(" Entry %s LINK_Auto \n", __FUNCTION__);
-                PHYRate = 10000;
+                PHYRate = 1000;
                 break;
             }
             default:
