@@ -933,7 +933,11 @@ static int GWP_act_ProvEntry_callback()
     system("ifconfig eth0 down");
     memset(command,0,sizeof(command));
     system("vlan_util del_interface brlan0 eth0");
+#ifdef _COSA_BCM_ARM_
+    sprintf(command, "ifconfig %s down; ip link set %s name cm0", wanPhyName,wanPhyName);
+#else
     sprintf(command, "ifconfig %s down; ip link set %s name dummy-rf", wanPhyName,wanPhyName);
+#endif
     system(command);
     memset(command,0,sizeof(command));
     #if 0
@@ -943,6 +947,14 @@ static int GWP_act_ProvEntry_callback()
     #endif
     printf("****************value of command = %s**********************\n", command);
     system(command);
+
+#ifdef _COSA_BCM_ARM_
+    system("ifconfig cm0 up");
+    memset(command,0,sizeof(command));
+    sprintf(command, "brctl addbr %s; brctl addif %s cm0", wanPhyName,wanPhyName);
+    printf("****************value of command = %s**********************\n", command);
+    system(command);
+#endif
 
     memset(command,0,sizeof(command));
     sprintf(command, "ifconfig %s down", wanPhyName);
