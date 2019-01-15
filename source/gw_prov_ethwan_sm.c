@@ -284,6 +284,7 @@ static int GWP_EthWanLinkUp_callback()
         int i = 1;
 	    system("sysevent set ethwan-initialized 1");
 		system("syscfg set eth_wan_enabled true"); // to handle Factory reset case
+		system("syscfg set ntp_enabled 1"); // Enable NTP in case of ETHWAN
 		system("syscfg commit");
 #if !defined(_PLATFORM_IPQ_)
         GWPROVETHWANLOG("WAN_MODE: Ethernet %d\n", ethGetPHYRate(i));
@@ -544,7 +545,6 @@ static void *GWPEthWan_sysevent_handler(void *data)
         int namelen = sizeof(name);
         int vallen  = sizeof(val);
         int err;
-		int isNTPSyncd = FALSE;
         async_id_t getnotification_asyncid;
 	    char brlan0_inst[BRG_INST_SIZE], brlan1_inst[BRG_INST_SIZE];
         char* l3net_inst = NULL;
@@ -642,16 +642,6 @@ static void *GWPEthWan_sysevent_handler(void *data)
                         if (!once) {
                               check_lan_wan_ready();
                         }
-						if (isNTPSyncd == FALSE)
-						{
-							isNTPSyncd = TRUE;
-			        		//Need to sync device time
-							system("systemctl stop ntpd.service");
-							system("echo server ntp.ccp.xcal.tv > /tmp/ntp_tmp_sync.conf");
-							system("ntpd -c /tmp/ntp_tmp_sync.conf -g -q");	 
-							system("killall ntpd");	 
-							system("systemctl start ntpd.service");
-						}
                     }
 		    system("touch /tmp/phylink_wan_state_up");
                     system("sysevent set sshd-restart");
