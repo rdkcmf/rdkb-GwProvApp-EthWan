@@ -879,9 +879,10 @@ static int GWP_act_ProvEntry_callback()
 {
     int i;
     int sysevent_bridge_mode = 0;
-    char command[50];
+    char command[64];
     char wanPhyName[20];
     char out_value[20];
+	unsigned char ethwan_ifname[ 64 ];
     int outbufsz = sizeof(out_value);
     GWPROVETHWANLOG(" Entry %s \n", __FUNCTION__);
     //system("sysevent set lan-start");
@@ -918,6 +919,17 @@ static int GWP_act_ProvEntry_callback()
       
     }
 
+	//Get the ethwan interface name from HAL
+	memset( ethwan_ifname , 0, sizeof( ethwan_ifname ) );
+	if ( ( 0 != GWP_GetEthWanInterfaceName( ethwan_ifname ) ) )
+	{
+		//Fallback case needs to set it default
+		memset( ethwan_ifname , 0, sizeof( ethwan_ifname ) );
+		sprintf( ethwan_ifname , "%s", "eth0" );
+		GWPROVETHWANLOG(" Failed to get EthWanInterfaceName: %s \n", ethwan_ifname );		
+	}
+
+		GWPROVETHWANLOG(" EthWanInterfaceName: %s \n", ethwan_ifname ); 
 
         macaddr_t macAddr;
 
@@ -930,9 +942,15 @@ static int GWP_act_ProvEntry_callback()
                 printf(" \n");
     char wan_mac[18];// = {0};
     sprintf(wan_mac, "%02x:%02x:%02x:%02x:%02x:%02x",macAddr.hw[0],macAddr.hw[1],macAddr.hw[2],macAddr.hw[3],macAddr.hw[4],macAddr.hw[5]);
-    system("ifconfig eth0 down");
+
     memset(command,0,sizeof(command));
-    system("vlan_util del_interface brlan0 eth0");
+    sprintf(command, "ifconfig %s down", ethwan_ifname);
+    system(command);
+
+    memset(command,0,sizeof(command));
+    sprintf(command, "vlan_util del_interface brlan0 %s", ethwan_ifname);
+    system(command);
+
 #ifdef _COSA_BCM_ARM_
     sprintf(command, "ifconfig %s down; ip link set %s name cm0", wanPhyName,wanPhyName);
 #else
@@ -943,7 +961,7 @@ static int GWP_act_ProvEntry_callback()
     #if 0
     sprintf(command, "ip link set eth0 name %s", wanPhyName);
     #else
-        sprintf(command, "brctl addbr %s; brctl addif %s eth0", wanPhyName,wanPhyName);
+        sprintf(command, "brctl addbr %s; brctl addif %s %s", wanPhyName,wanPhyName,ethwan_ifname);
     #endif
     printf("****************value of command = %s**********************\n", command);
     system(command);
