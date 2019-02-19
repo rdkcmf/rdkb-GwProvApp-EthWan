@@ -1380,13 +1380,13 @@ int main(int argc, char *argv[])
     char sysevent_cmd[80];
     int i;
     sleep(2);
-#if !defined(_PLATFORM_IPQ_)
 #ifdef FEATURE_SUPPORT_RDKLOG
     setenv("LOG4C_RCPATH","/rdklogger",1);
     rdk_logger_init(DEBUG_INI_NAME);
 #endif
     GWPROVETHWANLOG("GWP_ETHWAN Started gw_prov_EthWan\n");
 
+#if !defined(_PLATFORM_IPQ_)
 
     if (checkIfAlreadyRunning(argv[0]) == true)
     {
