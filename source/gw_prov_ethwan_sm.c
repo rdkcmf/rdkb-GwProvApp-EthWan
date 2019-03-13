@@ -143,6 +143,7 @@ static void check_lan_wan_ready();
 static void LAN_start();
 static int hotspot_started = 0;
 static appCallBack *obj_l[CB_REG_CNT_MAX];
+unsigned char ethwan_ifname[ 64 ];
 
 /**************************************************************************/
 /*! \fn int STATUS GWPEthWan_SyseventGetStr
@@ -643,6 +644,11 @@ static void *GWPEthWan_sysevent_handler(void *data)
                               check_lan_wan_ready();
                         }
                     }
+                    char command[100];
+                    memset(command,0,sizeof(command));
+                    sprintf(command, "sysctl -w net.ipv6.conf.%s.disable_ipv6=1", ethwan_ifname); // Fix: RDKB-21410, disabling IPv6 for ethwan port
+                    printf("****************value of command = %s**********************\n", command);
+                    system(command);
 		    system("touch /tmp/phylink_wan_state_up");
                     system("sysevent set sshd-restart");
                     restartFirewall = 1;
@@ -872,7 +878,6 @@ static int GWP_act_ProvEntry_callback()
     char command[64];
     char wanPhyName[20];
     char out_value[20];
-	unsigned char ethwan_ifname[ 64 ];
     int outbufsz = sizeof(out_value);
     GWPROVETHWANLOG(" Entry %s \n", __FUNCTION__);
     //system("sysevent set lan-start");
