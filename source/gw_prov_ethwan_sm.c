@@ -1236,11 +1236,27 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY);
     }
 
-	LAN_start();
-	while(1)
-	{
-		sleep(30);
-	}
+        LAN_start();
+
+#ifdef _COSA_BCM_ARM_
+        {
+            appCallBack *pObjEthwan = NULL;
+            pObjEthwan = (appCallBack*)malloc(sizeof(appCallBack));
+            memset(pObjEthwan, 0, sizeof(appCallBack));
+
+            GWPROVETHWANLOG(" Creating Event Handler\n");
+
+            /*appCallBack doesn't match with the one define in gw_prov_abstraction.h, pass NULL point just to start RPC tunnel. */
+            SME_CreateEventHandler(NULL);
+          
+            GWPROVETHWANLOG(" Creating Event Handler over\n");
+        }
+#endif
+
+        while(1)
+        {
+            sleep(30);
+        }
     }
 #else
     for (i = 0; i < CB_REG_CNT_MAX; i++) {
