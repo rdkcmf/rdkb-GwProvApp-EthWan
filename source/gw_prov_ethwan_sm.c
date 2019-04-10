@@ -576,7 +576,8 @@ static void *GWPEthWan_sysevent_handler(void *data)
             {
                 if (strcmp(val, "up")==0)
                 {
-                    //Need to Implement 
+                    //Need to Implement
+					system("sysevent set sshd-restart"); 
                 }
                 else
                 {
@@ -965,6 +966,9 @@ static int GWP_act_ProvEntry_callback()
     system("ifconfig cm0 up");
     memset(command,0,sizeof(command));
     sprintf(command, "brctl addbr %s; brctl addif %s cm0", wanPhyName,wanPhyName);
+    printf("****************value of command = %s**********************\n", command);
+    system(command);
+    sprintf(command, "sysctl -w net.ipv6.conf.cm0.disable_ipv6=1");
     printf("****************value of command = %s**********************\n", command);
     system(command);
 #endif
