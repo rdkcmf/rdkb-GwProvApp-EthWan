@@ -64,7 +64,7 @@
 #include "stdbool.h"
 #include "gw_prov_ethwan.h"
 #include "ccsp_hal_ethsw.h"
-
+#include "platform_hal.h"
 #ifdef FEATURE_SUPPORT_RDKLOG
 #include "rdk_debug.h"
 #endif
@@ -134,6 +134,12 @@ static uint32_t cb_registration_cnt;
 /* Maximum callback registrations supported is 32 */
 #define CB_REG_CNT_MAX 32
 
+/* For LED behavior */
+#define WHITE 0
+#define YELLOW 1
+#define SOLID	0
+#define BLINK	1
+
 static int pnm_inited = 0;
 static int netids_inited = 0;
 static int webui_started = 0;
@@ -144,7 +150,28 @@ static void LAN_start();
 static int hotspot_started = 0;
 static appCallBack *obj_l[CB_REG_CNT_MAX];
 unsigned char ethwan_ifname[ 64 ];
+int
+GwProvSetLED
+    (
+    	int color,
+    	int state,
+    	int interval
+    )
+{
+    LEDMGMT_PARAMS ledMgmt;
+    memset(&ledMgmt, 0, sizeof(LEDMGMT_PARAMS));
 
+	ledMgmt.LedColor = color;
+	ledMgmt.State	 = state;
+	ledMgmt.Interval = interval;
+#if defined(_XB6_PRODUCT_REQ_)
+	if(RETURN_ERR == platform_hal_setLed(&ledMgmt)) {
+		GWPROVETHWANLOG("platform_hal_setLed failed\n");
+		return 1;
+	}
+#endif
+    return 0;	
+}
 /**************************************************************************/
 /*! \fn int STATUS GWPEthWan_SyseventGetStr
  **************************************************************************
@@ -200,6 +227,7 @@ static int GWP_EthWanLinkDown_callback()
 	GWPROVETHWANLOG("\n GWP_EthWanLinkDown_callback \n");
 	GWPROVETHWANLOG("\n**************************\n\n");
 	GWPROVETHWANLOG(" Stopping wan service\n");
+	GwProvSetLED(YELLOW, BLINK, 1);
         system("sysevent set wan-stop");
 	system("ifconfig erouter0 up");
 	return 0;
@@ -268,7 +296,7 @@ static int GWP_EthWanLinkUp_callback()
         char wanPhyName[20];
         char out_value[20];
         int outbufsz = sizeof(out_value);
-
+	GwProvSetLED(WHITE, BLINK, 1);
         if (!syscfg_get(NULL, "wan_physical_ifname", out_value, outbufsz))
         {
            strcpy(wanPhyName, out_value);
@@ -539,7 +567,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
     sysevent_setnotification(sysevent_fd, sysevent_token, "lan-status",  &lan_status_asyncid);
     sysevent_set_options    (sysevent_fd, sysevent_token, "wan-status", TUPLE_FLAG_EVENT);
     sysevent_setnotification(sysevent_fd, sysevent_token, "wan-status",  &wan_status_asyncid);
-
+    GwProvSetLED(YELLOW, BLINK, 1);
    for (;;)
    {
         unsigned char name[25], val[42],buf[BUF_SIZE];;
@@ -991,7 +1019,7 @@ static int GWP_act_ProvEntry_callback()
                                 
 
 
-    GWP_EthWanLinkUp_callback();
+    //GWP_EthWanLinkUp_callback();
     return 0;
 }
 #endif
