@@ -527,6 +527,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
     async_id_t pnm_status_asyncid;
     async_id_t primary_lan_l3net_asyncid;
     async_id_t homesecurity_lan_l3net_asyncid;
+    async_id_t ntp_time_sync_asyncid;
     int l2net_inst_up = FALSE;
 
     /* RIPD/Zebra event ids */
@@ -567,6 +568,8 @@ static void *GWPEthWan_sysevent_handler(void *data)
     sysevent_setnotification(sysevent_fd, sysevent_token, "lan-status",  &lan_status_asyncid);
     sysevent_set_options    (sysevent_fd, sysevent_token, "wan-status", TUPLE_FLAG_EVENT);
     sysevent_setnotification(sysevent_fd, sysevent_token, "wan-status",  &wan_status_asyncid);
+    sysevent_set_options    (sysevent_fd, sysevent_token, "ntp_time_sync", TUPLE_FLAG_EVENT);
+    sysevent_setnotification(sysevent_fd, sysevent_token, "ntp_time_sync",  &ntp_time_sync_asyncid);
     GwProvSetLED(YELLOW, BLINK, 1);
    for (;;)
    {
@@ -611,6 +614,12 @@ static void *GWPEthWan_sysevent_handler(void *data)
                 {
                     //Need to Implement 
                 }
+            }
+            else if (strcmp(name, "ntp_time_sync")==0)
+            {
+            	GWPROVETHWANLOG("ntp time syncd, need to restart sshd %s\n", name);
+	    
+                system("sysevent set sshd-restart");
             }
 
             else if (strcmp(name, "system-restart") == 0)
