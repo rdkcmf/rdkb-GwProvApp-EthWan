@@ -53,7 +53,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#if !defined(_PLATFORM_IPQ)
+#if !defined(_PLATFORM_IPQ) && !defined(_PLATFORM_RASPBERRYPI_)
 #include <sys/types.h>
 #include <ruli.h>
 #endif
@@ -80,7 +80,7 @@ static token_t sysevent_token;
 static int sysevent_fd_gs;
 static token_t sysevent_token_gs;
 static pthread_t sysevent_tid;
-#if defined(_PLATFORM_IPQ_)
+#if defined(_PLATFORM_IPQ_) || defined(_PLATFORM_RASPBERRYPI_)
 static pthread_t linkstate_tid;
 #endif
 static uint32_t cb_registration_cnt;
@@ -137,8 +137,8 @@ static uint32_t cb_registration_cnt;
 /* For LED behavior */
 #define WHITE 0
 #define YELLOW 1
-#define SOLID	0
-#define BLINK	1
+#define SOLID   0
+#define BLINK   1
 
 static int pnm_inited = 0;
 static int netids_inited = 0;
@@ -150,28 +150,30 @@ static void LAN_start();
 static int hotspot_started = 0;
 static appCallBack *obj_l[CB_REG_CNT_MAX];
 unsigned char ethwan_ifname[ 64 ];
+#if !defined(_PLATFORM_RASPBERRYPI_)
 int
 GwProvSetLED
     (
-    	int color,
-    	int state,
-    	int interval
+        int color,
+        int state,
+        int interval
     )
 {
     LEDMGMT_PARAMS ledMgmt;
     memset(&ledMgmt, 0, sizeof(LEDMGMT_PARAMS));
 
-	ledMgmt.LedColor = color;
-	ledMgmt.State	 = state;
-	ledMgmt.Interval = interval;
+        ledMgmt.LedColor = color;
+        ledMgmt.State    = state;
+        ledMgmt.Interval = interval;
 #if defined(_XB6_PRODUCT_REQ_)
-	if(RETURN_ERR == platform_hal_setLed(&ledMgmt)) {
-		GWPROVETHWANLOG("platform_hal_setLed failed\n");
-		return 1;
-	}
+        if(RETURN_ERR == platform_hal_setLed(&ledMgmt)) {
+                GWPROVETHWANLOG("platform_hal_setLed failed\n");
+                return 1;
+        }
 #endif
-    return 0;	
+    return 0;
 }
+#endif
 /**************************************************************************/
 /*! \fn int STATUS GWPEthWan_SyseventGetStr
  **************************************************************************
@@ -185,6 +187,34 @@ int GWPEthWan_SyseventGetStr(const char *name, unsigned char *out_value, int out
 
    return 0;		
 }
+
+/**************************************************************************/
+/*      LOCAL FUNCTIONS:                                                  */
+/**************************************************************************/
+
+/**************************************************************************/
+/*! \fn static STATUS GWPETHWAN_SysCfgGetInt
+ **************************************************************************
+ *  \brief Get Syscfg Integer Value
+ *  \return int/-1
+ **************************************************************************/
+static int GWPETHWAN_SysCfgGetInt(const char *name)
+{
+   char out_value[20];
+   int outbufsz = sizeof(out_value);
+        printf(" %s : name = %s \n", __FUNCTION__, name);
+   if (!syscfg_get(NULL, name, out_value, outbufsz))
+   {
+        printf(" value = %s \n", out_value);
+      return atoi(out_value);
+   }
+   else
+   {
+        printf(" syscfg get failed \n");
+      return -1;
+   }
+}
+
 #if defined(_PLATFORM_IPQ_)
 /**************************************************************************/
 /*! \fn int STATUS GWP_GetEthWanLinkStatus
@@ -227,12 +257,14 @@ static int GWP_EthWanLinkDown_callback()
 	GWPROVETHWANLOG("\n GWP_EthWanLinkDown_callback \n");
 	GWPROVETHWANLOG("\n**************************\n\n");
 	GWPROVETHWANLOG(" Stopping wan service\n");
+#if !defined(_PLATFORM_RASPBERRYPI_)
 	GwProvSetLED(YELLOW, BLINK, 1);
+#endif
         system("sysevent set wan-stop");
 	system("ifconfig erouter0 up");
 	return 0;
 }
-#if !defined(_PLATFORM_IPQ_)
+#if !defined(_PLATFORM_IPQ_) && !defined(_PLATFORM_RASPBERRYPI_)
 static int ethGetPHYRate
     (
         CCSP_HAL_ETHSW_PORT PortId
@@ -285,6 +317,7 @@ static int ethGetPHYRate
     return PHYRate;
 }
 #endif
+
 static int GWP_EthWanLinkUp_callback()
 {
 	GWPROVETHWANLOG(" Entry %s \n", __FUNCTION__);
@@ -292,11 +325,15 @@ static int GWP_EthWanLinkUp_callback()
 	GWPROVETHWANLOG("\n**************************\n");
 	GWPROVETHWANLOG("\nGWP_EthWanLinkUp_callback\n");
 	GWPROVETHWANLOG("\n**************************\n\n");
+#if !defined(_PLATFORM_RASPBERRYPI_)
 	system("sysevent set bridge_mode 0"); // to boot in router mode
+#endif
         char wanPhyName[20];
         char out_value[20];
         int outbufsz = sizeof(out_value);
+#if !defined(_PLATFORM_RASPBERRYPI_)
 	GwProvSetLED(WHITE, BLINK, 1);
+#endif
         if (!syscfg_get(NULL, "wan_physical_ifname", out_value, outbufsz))
         {
            strcpy(wanPhyName, out_value);
@@ -309,13 +346,23 @@ static int GWP_EthWanLinkUp_callback()
 
         printf("Starting wan service\n");
         GWPROVETHWANLOG(" Starting wan service\n");
+#if defined(_PLATFORM_RASPBERRYPI_)
+	system("sysevent set wan-start;sysevent set sshd-restart");
+        sleep(50);
+        system("sysevent set current_ipv4_link_state up");
+        system("sysevent set ipv4_wan_ipaddr `ifconfig erouter0 | grep \"inet addr\" | cut -d':' -f2 | awk '{print$1}'`");
+        system("sysevent set ipv4_wan_subnet `ifconfig erouter0 | grep \"inet addr\" | cut -d':' -f4 | awk '{print$1}'`");
+        system("sysevent set wan_service-status started");
+        system("sysevent set bridge_mode `syscfg get bridge_mode`");
+#else
         system("sysevent set wan-start");
+#endif
         int i = 1;
 	    system("sysevent set ethwan-initialized 1");
 		system("syscfg set eth_wan_enabled true"); // to handle Factory reset case
 		system("syscfg set ntp_enabled 1"); // Enable NTP in case of ETHWAN
 		system("syscfg commit");
-#if !defined(_PLATFORM_IPQ_)
+#if !defined(_PLATFORM_IPQ_) && !defined(_PLATFORM_RASPBERRYPI_)
         GWPROVETHWANLOG("WAN_MODE: Ethernet %d\n", ethGetPHYRate(i));
 #endif
         return 0;
@@ -446,10 +493,91 @@ static void *GWPEthWan_linkstate_threadfunc(void *data)
 
     return 0;
 }
+#elif defined(_PLATFORM_RASPBERRYPI_)
+static void *GWPEthWan_linkstate_threadfunc(void *data)
+{
+        char *temp;
+    char command[50] = {0};
+    char wanPhyName[20] = {0};
+    char out_value[20] = {0};
+    int outbufsz = sizeof(out_value);
+
+    char* buff = NULL;
+    buff = malloc(sizeof(char)*50);
+    if(buff == NULL)
+    {
+        return (void *) -1;
+    }
+    char previousLinkStatus[10] = "down";
+    if (!syscfg_get(NULL, "wan_physical_ifname", out_value, outbufsz))
+    {
+        strcpy(wanPhyName, out_value);
+        printf("wanPhyName = %s\n", wanPhyName);
+    }
+    else
+    {
+        if(buff != NULL)
+            free(buff);
+        return (void *) -1;
+    }
+    sprintf(command, "cat /sys/class/net/%s/operstate", wanPhyName);
+
+    while(1)
+    {
+        FILE *fp;
+        memset(buff,0,sizeof(buff));
+
+        /* Open the command for reading. */
+        fp = popen(command, "r");
+        if (fp == NULL)
+        {
+            printf("<%s>:<%d> Error popen\n", __FUNCTION__, __LINE__);
+	    continue;
+        }
+         /* Read the output a line at a time - output it. */
+        while (fgets(buff, 50, fp) != NULL)
+        {
+            /*printf("Ethernet status :%s", buff);*/
+            temp = strchr(buff, '\n');
+            if(temp)
+                *temp = '\0';
+        }
+
+        /* close */
+        pclose(fp);
+        if(!strcmp(buff, (const char *)previousLinkStatus))
+        {
+            printf("Link status not changed\n");
+        }
+        else
+        {
+            if(!strcmp(buff, "up"))
+            {
+                GWP_EthWanLinkUp_callback();
+            }
+            else if(!strcmp(buff, "down"))
+            {
+                GWP_EthWanLinkDown_callback();
+            }
+            else
+            {
+                sleep(5);
+                continue;
+            }
+            memset(previousLinkStatus,0,sizeof(previousLinkStatus));
+            strcpy((char *)previousLinkStatus, buff);
+        }
+        sleep(5);
+    }
+if(buff != NULL)
+        free(buff);
+
+    return 0;
+}
 #endif
 
 /** 
-* @brief  Create state machine for event handling from DOCSIS stack
+*@brief  Create state machine for event handling from DOCSIS stack 
 *\n Prototype :
 		int GWP_RegisterEthWan_Callback
 	(
@@ -570,7 +698,9 @@ static void *GWPEthWan_sysevent_handler(void *data)
     sysevent_setnotification(sysevent_fd, sysevent_token, "wan-status",  &wan_status_asyncid);
     sysevent_set_options    (sysevent_fd, sysevent_token, "ntp_time_sync", TUPLE_FLAG_EVENT);
     sysevent_setnotification(sysevent_fd, sysevent_token, "ntp_time_sync",  &ntp_time_sync_asyncid);
+#if !defined(_PLATFORM_RASPBERRYPI_)
     GwProvSetLED(YELLOW, BLINK, 1);
+#endif
    for (;;)
    {
         unsigned char name[25], val[42],buf[BUF_SIZE];;
@@ -578,7 +708,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
         int vallen  = sizeof(val);
         int err;
         async_id_t getnotification_asyncid;
-	    char brlan0_inst[BRG_INST_SIZE], brlan1_inst[BRG_INST_SIZE];
+	char brlan0_inst[BRG_INST_SIZE], brlan1_inst[BRG_INST_SIZE];
         char* l3net_inst = NULL;
 
         err = sysevent_getnotification(sysevent_fd, sysevent_token, name, &namelen,  val, &vallen, &getnotification_asyncid);
@@ -615,13 +745,12 @@ static void *GWPEthWan_sysevent_handler(void *data)
                     //Need to Implement 
                 }
             }
-            else if (strcmp(name, "ntp_time_sync")==0)
+	    else if (strcmp(name, "ntp_time_sync")==0)
             {
-            	GWPROVETHWANLOG("ntp time syncd, need to restart sshd %s\n", name);
-	    
+                GWPROVETHWANLOG("ntp time syncd, need to restart sshd %s\n", name);
+
                 system("sysevent set sshd-restart");
             }
-
             else if (strcmp(name, "system-restart") == 0)
             {
                 printf("gw_prov_sm: got system restart\n");
@@ -771,13 +900,17 @@ static void *GWPEthWan_sysevent_handler(void *data)
                 else
                     sysevent_set(sysevent_fd_gs, sysevent_token_gs, "firewall-restart", "",0);
             }
-#if !defined(_PLATFORM_IPQ_)
+#if !defined(_PLATFORM_IPQ_) 
             else if (strcmp(name, "lan-status") == 0 )
             {
 		 GWPROVETHWANLOG(" lan-status received \n");
 				if (strcmp(val, "started") == 0) {
 				    if (!webui_started) { 
+#if defined(_PLATFORM_RASPBERRYPI_)
+				       system("/bin/sh /etc/webgui.sh");
+#else
 				        startWebUIProcess();
+#endif
 				        webui_started = 1 ;
 
 				        //Piggy back off the webui start event to signal XHS startup
@@ -833,7 +966,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
     GWPROVETHWANLOG("Exiting from %s\n",__FUNCTION__);
 }
 
-#if defined(_PLATFORM_IPQ_)
+#if defined(_PLATFORM_IPQ_) || defined(_PLATFORM_RASPBERRYPI_)
 static int GWP_act_ProvEntry_callback()
 {
     GWPROVETHWANLOG( "Entering into %s\n",__FUNCTION__);
@@ -860,8 +993,9 @@ static int GWP_act_ProvEntry_callback()
      * Invoking board specific configuration script to set the board related
      * syscfg parameters.
      */
+#if !defined(_PLATFORM_RASPBERRYPI_)
     system("/usr/bin/apply_board_defaults.sh");
-
+#endif
     char command[50];
     char wanPhyName[20];
     char out_value[20];
@@ -905,7 +1039,6 @@ static int GWP_act_ProvEntry_callback()
     LAN_start();
 
     pthread_create(&linkstate_tid, NULL, GWPEthWan_linkstate_threadfunc, NULL);
-
     return 0;
 }
 #else
@@ -1181,7 +1314,28 @@ static void daemonize(void)
 
 static void LAN_start() {
         GWPROVETHWANLOG("Utopia starting lan...\n");
+#if defined(_PLATFORM_RASPBERRYPI_)
+	int bridge_mode = 0;
+        bridge_mode = GWPETHWAN_SysCfgGetInt("bridge_mode");
+        if(bridge_mode == 0)  // start the router mode set-up
+        {
+                printf("Utopia starting lan...\n");
+                sysevent_set(sysevent_fd_gs, sysevent_token_gs, "lan-start", "", 0);
+                sysevent_set(sysevent_fd_gs, sysevent_token_gs, "bridge-stop", "", 0);
+        }
+        else if(bridge_mode == 2)
+        {
+                printf("Utopia starting bridge...\n");
+                sysevent_set(sysevent_fd_gs, sysevent_token_gs, "bridge-start", "", 0);
+                sysevent_set(sysevent_fd_gs, sysevent_token_gs, "lan-stop", "", 0);
+        }
+        else
+        {
+                printf("starting with different mode ..\n");
+        }
+#else
         sysevent_set(sysevent_fd_gs, sysevent_token_gs, "lan-start", "", 0);
+#endif
         sysevent_set(sysevent_fd_gs, sysevent_token_gs, "dhcp_server-resync", "", 0);
 
         return;
@@ -1222,7 +1376,7 @@ int main(int argc, char *argv[])
 
 
  			GWP_act_ProvEntry_callback();
-#if !defined(_PLATFORM_IPQ_)
+#if !defined(_PLATFORM_IPQ_) && !defined(_PLATFORM_RASPBERRYPI_)
 	        CcspHalEthSwInit();
 #endif
             if (GWP_ETHWAN_Init() != 0)
@@ -1244,7 +1398,9 @@ int main(int argc, char *argv[])
 	obj->pGWP_act_EthWanLinkDown =  GWP_EthWanLinkDown_callback;
 	obj->pGWP_act_EthWanLinkUP =  GWP_EthWanLinkUp_callback;
 	GWPROVETHWANLOG("GWP_ETHWAN Creating RegisterEthWan Handler\n");
+#if !defined (_PLATFORM_RASPBERRYPI_)
 	GWP_RegisterEthWan_Callback ( obj );
+#endif
 	GWPROVETHWANLOG("GWP_ETHWAN Creating RegisterEthWan Handler over\n");
 
     if ((syscfg_set(NULL, BASE_MAC_SYSCFG_KEY, sysevent_cmd) != 0))
@@ -1273,9 +1429,9 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY);
     }
 
-        LAN_start();
+	LAN_start();
 
-#ifdef _COSA_BCM_ARM_
+#ifdef _COSA_BCM_ARM_ 
         {
             appCallBack *pObjEthwan = NULL;
             pObjEthwan = (appCallBack*)malloc(sizeof(appCallBack));
@@ -1283,17 +1439,19 @@ int main(int argc, char *argv[])
 
             GWPROVETHWANLOG(" Creating Event Handler\n");
 
+#if !defined(_PLATFORM_RASPBERRYPI_)
             /*appCallBack doesn't match with the one define in gw_prov_abstraction.h, pass NULL point just to start RPC tunnel. */
             SME_CreateEventHandler(NULL);
-          
+#endif
+
             GWPROVETHWANLOG(" Creating Event Handler over\n");
         }
 #endif
 
-        while(1)
-        {
-            sleep(30);
-        }
+	while(1)
+	{
+		sleep(30);
+	}
     }
 #else
     for (i = 0; i < CB_REG_CNT_MAX; i++) {

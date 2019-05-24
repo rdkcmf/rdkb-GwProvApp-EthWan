@@ -31,7 +31,11 @@ bin_PROGRAMS = gw_prov_ethwan
 gw_prov_ethwan_CPPFLAGS = -I/var/tmp/pc-rdkb/include $(CPPFLAGS) -I$(srcdir)/include -I$(top_srcdir)/../hal/include -I${PKG_CONFIG_SYSROOT_DIR}/$(includedir)/ruli/
 gw_prov_ethwan_SOURCES = gw_prov_ethwan_sm.c
 if !PLATFORM_IPQ_ENABLED
+if !PLATFORM_RASPBERRYPI_ENABLED
 gw_prov_ethwan_LDFLAGS = -lgwprovappabs -lsysevent -lsyscfg -lhal_msomgmt -lccsp_common -lhal_ethsw -lhal_platform
+else
+gw_prov_ethwan_LDFLAGS = -lsysevent -lsyscfg -lhal_msomgmt -lccsp_common -lhal_ethsw
+endif
 else
 gw_prov_ethwan_LDFLAGS = -lsysevent -lsyscfg -lhal_msomgmt -lccsp_common -lhal_ethsw
 endif
