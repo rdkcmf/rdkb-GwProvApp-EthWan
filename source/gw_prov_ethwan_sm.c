@@ -763,7 +763,12 @@ static void *GWPEthWan_sysevent_handler(void *data)
             }
             else if (strcmp(name, "firewall-restart")==0)
             {
-                //Need to Implement 
+		char cmd[100];
+		    GWPROVETHWANLOG("received notification event %s\n", name);
+                    memset(cmd,0,sizeof(cmd));
+		    sprintf(cmd, "ip6tables -I OUTPUT -o %s -p icmpv6 -j DROP", ethwan_ifname);
+    		    system(cmd);
+		    GWPROVETHWANLOG("cmd %s\n", cmd);
             }
 #if defined(_PLATFORM_IPQ_)
             else if ((strcmp(name, "lan-status") == 0 ||
@@ -1131,13 +1136,29 @@ static int GWP_act_ProvEntry_callback()
     #endif
     printf("****************value of command = %s**********************\n", command);
     system(command);
-
+    memset(command,0,sizeof(command));
+    sprintf(command, "sysctl -w net.ipv6.conf.%s.autoconf=0", ethwan_ifname); // Fix: RDKB-22835, disabling IPv6 for ethwan port
+    printf("****************value of command = %s**********************\n", command);
+    system(command);
+    memset(command,0,sizeof(command));
+    sprintf(command, "sysctl -w net.ipv6.conf.%s.disable_ipv6=1", ethwan_ifname); // Fix: RDKB-22835, disabling IPv6 for ethwan port
+    printf("****************value of command = %s**********************\n", command);
+    system(command);
+    memset(command,0,sizeof(command));
+    sprintf(command, "ifconfig %s hw ether %s", ethwan_ifname,wan_mac);
+    printf("************************value of command = %s\***********************n", command);
+    system(command);
+    memset(command,0,sizeof(command));
+    sprintf(command, "ip6tables -I OUTPUT -o %s -p icmpv6 -j DROP", ethwan_ifname);
+    system(command);
+    memset(command,0,sizeof(command));
 #ifdef _COSA_BCM_ARM_
     system("ifconfig cm0 up");
     memset(command,0,sizeof(command));
     sprintf(command, "brctl addbr %s; brctl addif %s cm0", wanPhyName,wanPhyName);
     printf("****************value of command = %s**********************\n", command);
     system(command);
+    memset(command,0,sizeof(command));
     sprintf(command, "sysctl -w net.ipv6.conf.cm0.disable_ipv6=1");
     printf("****************value of command = %s**********************\n", command);
     system(command);
