@@ -1181,7 +1181,8 @@ static int GWP_act_ProvEntry_callback()
     system(command);
                                 
 
-
+    system("sysevent set bridge_mode 0"); // to boot in router mode
+    system("syscfg set eth_wan_enabled true"); // to handle Factory reset case
     //GWP_EthWanLinkUp_callback();
     return 0;
 }
