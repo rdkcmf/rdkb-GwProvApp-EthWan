@@ -53,7 +53,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#if !defined(_PLATFORM_IPQ) && !defined(_PLATFORM_RASPBERRYPI_)
+#if !defined(_PLATFORM_IPQ) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
 #include <sys/types.h>
 #include <ruli.h>
 #endif
@@ -80,7 +80,7 @@ static token_t sysevent_token;
 static int sysevent_fd_gs;
 static token_t sysevent_token_gs;
 static pthread_t sysevent_tid;
-#if defined(_PLATFORM_IPQ_) || defined(_PLATFORM_RASPBERRYPI_)
+#if defined(_PLATFORM_IPQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)
 static pthread_t linkstate_tid;
 #endif
 static uint32_t cb_registration_cnt;
@@ -150,7 +150,7 @@ static void LAN_start();
 static int hotspot_started = 0;
 static appCallBack *obj_l[CB_REG_CNT_MAX];
 unsigned char ethwan_ifname[ 64 ];
-#if !defined(_PLATFORM_RASPBERRYPI_)
+#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
 int
 GwProvSetLED
     (
@@ -257,14 +257,14 @@ static int GWP_EthWanLinkDown_callback()
 	GWPROVETHWANLOG("\n GWP_EthWanLinkDown_callback \n");
 	GWPROVETHWANLOG("\n**************************\n\n");
 	GWPROVETHWANLOG(" Stopping wan service\n");
-#if !defined(_PLATFORM_RASPBERRYPI_)
+#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
 	GwProvSetLED(YELLOW, BLINK, 1);
 #endif
         system("sysevent set wan-stop");
 	system("ifconfig erouter0 up");
 	return 0;
 }
-#if !defined(_PLATFORM_IPQ_) && !defined(_PLATFORM_RASPBERRYPI_)
+#if !defined(_PLATFORM_IPQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
 static int ethGetPHYRate
     (
         CCSP_HAL_ETHSW_PORT PortId
@@ -325,7 +325,7 @@ static int GWP_EthWanLinkUp_callback()
 	GWPROVETHWANLOG("\n**************************\n");
 	GWPROVETHWANLOG("\nGWP_EthWanLinkUp_callback\n");
 	GWPROVETHWANLOG("\n**************************\n\n");
-#if !defined(_PLATFORM_RASPBERRYPI_)
+#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
 	system("sysevent set bridge_mode 0"); // to boot in router mode
 #endif
         char wanPhyName[20];
@@ -333,7 +333,7 @@ static int GWP_EthWanLinkUp_callback()
         int outbufsz = sizeof(out_value);
         char redirFlag[10]={0};
         char captivePortalEnable[10]={0};
-#if !defined(_PLATFORM_RASPBERRYPI_)
+#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
         if (!syscfg_get(NULL, "redirection_flag", redirFlag, sizeof(redirFlag)) && !syscfg_get(NULL, "CaptivePortal_Enable", captivePortalEnable, sizeof(captivePortalEnable))){
           if (!strcmp(redirFlag,"true") && !strcmp(captivePortalEnable,"true"))
 	    GwProvSetLED(WHITE, BLINK, 1);
@@ -351,7 +351,7 @@ static int GWP_EthWanLinkUp_callback()
 
         printf("Starting wan service\n");
         GWPROVETHWANLOG(" Starting wan service\n");
-#if defined(_PLATFORM_RASPBERRYPI_)
+#if defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)
 	system("sysevent set wan-start;sysevent set sshd-restart");
         sleep(50);
         system("sysevent set current_ipv4_link_state up");
@@ -367,7 +367,7 @@ static int GWP_EthWanLinkUp_callback()
 		system("syscfg set eth_wan_enabled true"); // to handle Factory reset case
 		system("syscfg set ntp_enabled 1"); // Enable NTP in case of ETHWAN
 		system("syscfg commit");
-#if !defined(_PLATFORM_IPQ_) && !defined(_PLATFORM_RASPBERRYPI_)
+#if !defined(_PLATFORM_IPQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
         GWPROVETHWANLOG("WAN_MODE: Ethernet %d\n", ethGetPHYRate(i));
 #endif
         return 0;
@@ -498,7 +498,7 @@ static void *GWPEthWan_linkstate_threadfunc(void *data)
 
     return 0;
 }
-#elif defined(_PLATFORM_RASPBERRYPI_)
+#elif defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)
 static void *GWPEthWan_linkstate_threadfunc(void *data)
 {
         char *temp;
@@ -703,7 +703,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
     sysevent_setnotification(sysevent_fd, sysevent_token, "wan-status",  &wan_status_asyncid);
     sysevent_set_options    (sysevent_fd, sysevent_token, "ntp_time_sync", TUPLE_FLAG_EVENT);
     sysevent_setnotification(sysevent_fd, sysevent_token, "ntp_time_sync",  &ntp_time_sync_asyncid);
-#if !defined(_PLATFORM_RASPBERRYPI_)
+#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
     GwProvSetLED(YELLOW, BLINK, 1);
 #endif
    for (;;)
@@ -916,7 +916,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
 		 GWPROVETHWANLOG(" lan-status received \n");
 				if (strcmp(val, "started") == 0) {
 				    if (!webui_started) { 
-#if defined(_PLATFORM_RASPBERRYPI_)
+#if defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)
 				       system("/bin/sh /etc/webgui.sh");
 #else
 				        startWebUIProcess();
@@ -976,12 +976,15 @@ static void *GWPEthWan_sysevent_handler(void *data)
     GWPROVETHWANLOG("Exiting from %s\n",__FUNCTION__);
 }
 
-#if defined(_PLATFORM_IPQ_) || defined(_PLATFORM_RASPBERRYPI_)
+#if defined(_PLATFORM_IPQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)
 static int GWP_act_ProvEntry_callback()
 {
     GWPROVETHWANLOG( "Entering into %s\n",__FUNCTION__);
 
     system("mkdir -p /nvram");
+#if defined(_PLATFORM_TURRIS_)
+    system("mount /dev/mmcblk0p6 /nvram");
+#endif
     system("rm -f /nvram/dnsmasq.leases");
     system("syslogd -f /etc/syslog.conf");
 
@@ -1003,7 +1006,7 @@ static int GWP_act_ProvEntry_callback()
      * Invoking board specific configuration script to set the board related
      * syscfg parameters.
      */
-#if !defined(_PLATFORM_RASPBERRYPI_)
+#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
     system("/usr/bin/apply_board_defaults.sh");
 #endif
     char command[50];
@@ -1026,6 +1029,10 @@ static int GWP_act_ProvEntry_callback()
     system("ifconfig eth3 down");
     memset(command,0,sizeof(command));
     sprintf(command, "ip link set eth3 name %s", wanPhyName);
+#elif defined(_PLATFORM_TURRIS_)
+    memset(command,0,sizeof(command));
+    system("ifconfig eth2 down");
+    sprintf(command, "ip link set eth2 name %s", wanPhyName);
 #else
     system("ifconfig eth0 down");
     memset(command,0,sizeof(command));
@@ -1033,7 +1040,6 @@ static int GWP_act_ProvEntry_callback()
 #endif    
     printf("****************value of command = %s**********************\n", command);
     system(command);
-
     memset(command,0,sizeof(command));
     sprintf(command, "ifconfig %s up", wanPhyName);
     printf("************************value of command = %s\***********************n", command);
@@ -1351,7 +1357,7 @@ static void daemonize(void)
 
 static void LAN_start() {
         GWPROVETHWANLOG("Utopia starting lan...\n");
-#if defined(_PLATFORM_RASPBERRYPI_)
+#if defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)
 	int bridge_mode = 0;
         bridge_mode = GWPETHWAN_SysCfgGetInt("bridge_mode");
         if(bridge_mode == 0)  // start the router mode set-up
@@ -1413,7 +1419,7 @@ int main(int argc, char *argv[])
 
 
  			GWP_act_ProvEntry_callback();
-#if !defined(_PLATFORM_IPQ_) && !defined(_PLATFORM_RASPBERRYPI_)
+#if !defined(_PLATFORM_IPQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
 	        CcspHalEthSwInit();
 #endif
             if (GWP_ETHWAN_Init() != 0)
@@ -1435,7 +1441,7 @@ int main(int argc, char *argv[])
 	obj->pGWP_act_EthWanLinkDown =  GWP_EthWanLinkDown_callback;
 	obj->pGWP_act_EthWanLinkUP =  GWP_EthWanLinkUp_callback;
 	GWPROVETHWANLOG("GWP_ETHWAN Creating RegisterEthWan Handler\n");
-#if !defined (_PLATFORM_RASPBERRYPI_)
+#if !defined (_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
 	GWP_RegisterEthWan_Callback ( obj );
 #endif
 	GWPROVETHWANLOG("GWP_ETHWAN Creating RegisterEthWan Handler over\n");
@@ -1476,7 +1482,7 @@ int main(int argc, char *argv[])
 
             GWPROVETHWANLOG(" Creating Event Handler\n");
 
-#if !defined(_PLATFORM_RASPBERRYPI_)
+#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
             /*appCallBack doesn't match with the one define in gw_prov_abstraction.h, pass NULL point just to start RPC tunnel. */
             SME_CreateEventHandler(NULL);
 #endif
