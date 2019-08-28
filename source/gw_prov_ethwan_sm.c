@@ -1022,9 +1022,15 @@ static int GWP_act_ProvEntry_callback()
        return -1;
     }
 
+#ifdef _XB7_PRODUCT_REQ_
+    system("ifconfig eth3 down");
+    memset(command,0,sizeof(command));
+    sprintf(command, "ip link set eth3 name %s", wanPhyName);
+#else
     system("ifconfig eth0 down");
     memset(command,0,sizeof(command));
     sprintf(command, "ip link set eth0 name %s", wanPhyName);
+#endif    
     printf("****************value of command = %s**********************\n", command);
     system(command);
 
@@ -1101,7 +1107,11 @@ static int GWP_act_ProvEntry_callback()
 	{
 		//Fallback case needs to set it default
 		memset( ethwan_ifname , 0, sizeof( ethwan_ifname ) );
-		sprintf( ethwan_ifname , "%s", "eth0" );
+#ifdef _XB7_PRODUCT_REQ_
+		sprintf( ethwan_ifname , "%s", "eth3" );
+#else
+        sprintf( ethwan_ifname , "%s", "eth0" );
+#endif
 		GWPROVETHWANLOG(" Failed to get EthWanInterfaceName: %s \n", ethwan_ifname );		
 	}
 
