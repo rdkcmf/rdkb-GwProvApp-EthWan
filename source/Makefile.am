@@ -34,15 +34,10 @@ if WAN_MANAGER_ENABLED
 gw_prov_ethwan_LDFLAGS = -lsysevent -lsyscfg -lhal_msomgmt -lccsp_common -lhal_ethsw
 else
 if !PLATFORM_IPQ_ENABLED
-if PLATFORM_RASPBERRYPI_ENABLED 
-gw_prov_ethwan_LDFLAGS = -lsysevent -lsyscfg -lhal_msomgmt -lccsp_common -lhal_ethsw
-else
-if PLATFORM_TURRIS_ENABLED
-gw_prov_ethwan_LDFLAGS = -lsysevent -lsyscfg -lhal_msomgmt -lccsp_common -lhal_ethsw
-else
+if !PLATFORM_RASPBERRYPI_ENABLED
 gw_prov_ethwan_LDFLAGS = -lgwprovappabs -lsysevent -lsyscfg -lhal_msomgmt -lccsp_common -lhal_ethsw -lhal_platform
-endif
-
+else
+gw_prov_ethwan_LDFLAGS = -lsysevent -lsyscfg -lhal_msomgmt -lccsp_common -lhal_ethsw
 endif
 else
 gw_prov_ethwan_LDFLAGS = -lsysevent -lsyscfg -lhal_msomgmt -lccsp_common -lhal_ethsw
