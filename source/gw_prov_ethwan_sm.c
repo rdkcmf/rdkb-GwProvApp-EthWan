@@ -1187,6 +1187,8 @@ static int GWP_act_ProvEntry_callback()
     printf("************************value of command = %s\***********************n", command);
     system(command);
     memset(command,0,sizeof(command));
+    platform_hal_GetBaseMacAddress(wan_mac);
+    printf("************************cmmac = %s\***********************n", wan_mac);
     sprintf(command, "sysevent set eth_wan_mac %s", wan_mac);
     system(command);
       // setNetworkDeviceMacAddress(ER_NETDEVNAME,&macAddr);
