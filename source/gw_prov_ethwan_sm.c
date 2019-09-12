@@ -69,6 +69,7 @@
 #include "rdk_debug.h"
 #endif
 
+
 /* Global Variables*/
 //char log_buff[1024];
 
@@ -139,6 +140,7 @@ static uint32_t cb_registration_cnt;
 #define YELLOW 1
 #define SOLID   0
 #define BLINK   1
+#define RED	3
 
 static int pnm_inited = 0;
 static int netids_inited = 0;
@@ -667,6 +669,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
     async_id_t primary_lan_l3net_asyncid;
     async_id_t homesecurity_lan_l3net_asyncid;
     async_id_t ntp_time_sync_asyncid;
+    async_id_t ping_status_asyncid;
     int l2net_inst_up = FALSE;
 
     /* RIPD/Zebra event ids */
@@ -709,6 +712,9 @@ static void *GWPEthWan_sysevent_handler(void *data)
     sysevent_setnotification(sysevent_fd, sysevent_token, "wan-status",  &wan_status_asyncid);
     sysevent_set_options    (sysevent_fd, sysevent_token, "ntp_time_sync", TUPLE_FLAG_EVENT);
     sysevent_setnotification(sysevent_fd, sysevent_token, "ntp_time_sync",  &ntp_time_sync_asyncid);
+
+    sysevent_setnotification(sysevent_fd, sysevent_token, "ping-status",  &ping_status_asyncid);
+
 #if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
     GwProvSetLED(YELLOW, BLINK, 1);
 #endif
@@ -721,7 +727,11 @@ static void *GWPEthWan_sysevent_handler(void *data)
         async_id_t getnotification_asyncid;
 	char brlan0_inst[BRG_INST_SIZE], brlan1_inst[BRG_INST_SIZE];
         char* l3net_inst = NULL;
-
+	FILE *responsefd=NULL;
+      	char *networkResponse = "/var/tmp/networkresponse.txt";
+        int iresCode = 0 , iRet = 0;
+        char responseCode[10]={0}, cp_enable[10]={0}, redirect_flag[10]={0};
+        int Led_Color = 0 , Led_State = 0 , Led_Interval = 0 ;
         err = sysevent_getnotification(sysevent_fd, sysevent_token, name, &namelen,  val, &vallen, &getnotification_asyncid);
 
         if (err)
@@ -780,6 +790,75 @@ static void *GWPEthWan_sysevent_handler(void *data)
 		    sprintf(cmd, "ip6tables -I OUTPUT -o %s -p icmpv6 -j DROP", ethwan_ifname);
     		    system(cmd);
 		    GWPROVETHWANLOG("cmd %s\n", cmd);
+            }
+
+  	   else if (strcmp(name, "ping-status") == 0)
+            {
+  
+                 GWPROVETHWANLOG("Received ping-status event notification, ping-status value is %s\n", val);
+
+                if (strcmp(val, "missed")==0)
+                {
+
+			#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
+                        GWPROVETHWANLOG("Ping missed, Setting LED to RED\n");
+			GwProvSetLED(RED, SOLID, 0) ;
+			#endif
+		
+			// Set LED state to RED
+                }
+                else if (strcmp(val, "received")==0)
+                {
+		    // Set LED state based on whether device is in CP or not
+
+	           Led_Color = WHITE ;
+		   Led_State = SOLID ;
+		   Led_Interval = 0 ;
+
+ 		   iRet = syscfg_get(NULL, "CaptivePortal_Enable", cp_enable, sizeof(cp_enable));
+		
+		    if ( ( iRet == 0 ) && ( strcmp(cp_enable,"true") == 0 ) )
+		    {
+			
+			iRet=0;
+		   	iRet = syscfg_get(NULL, "redirection_flag", redirect_flag, sizeof(redirect_flag));
+			if ( ( iRet == 0 ) &&  (strcmp(redirect_flag,"true") == 0 ) )
+			{
+				
+           	    		if((responsefd = fopen(networkResponse, "r")) != NULL)
+            	    		{
+                			if(fgets(responseCode, sizeof(responseCode), responsefd) != NULL)
+                			{
+                    				iresCode = atoi(responseCode);
+                			}
+
+                        		fclose(responsefd);
+                			responsefd = NULL;
+					if ( 204 == iresCode )
+					{
+					        Led_State = BLINK ;
+			                        Led_Interval = 1 ;
+					}
+            	    		}
+				
+			}
+		    }
+		   
+  		    if ( BLINK == Led_State )
+		    {
+         		GWPROVETHWANLOG("Device is in Captive Portal, setting WHITE LED to blink\n");
+		    }
+		    else
+		    {
+         		GWPROVETHWANLOG("Device is not in Captive Portal, setting LED to SOLID WHITE\n");
+		    }
+
+                    #if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
+                      GwProvSetLED(Led_Color, Led_State, Led_Interval) ;
+                    #endif
+
+
+                }
             }
 #if defined(_PLATFORM_IPQ_)
             else if ((strcmp(name, "lan-status") == 0 ||
