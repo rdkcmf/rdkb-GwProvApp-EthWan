@@ -337,6 +337,12 @@ static int GWP_EthWanLinkUp_callback()
         if (!syscfg_get(NULL, "redirection_flag", redirFlag, sizeof(redirFlag)) && !syscfg_get(NULL, "CaptivePortal_Enable", captivePortalEnable, sizeof(captivePortalEnable))){
           if (!strcmp(redirFlag,"true") && !strcmp(captivePortalEnable,"true"))
 	    GwProvSetLED(WHITE, BLINK, 1);
+//Cox: Cp is disabled and need to show solid white
+         if(!strcmp(captivePortalEnable,"false"))
+         {
+		GWPROVETHWANLOG("%s: CP disabled case and set led to solid white \n", __FUNCTION__);
+		GwProvSetLED(WHITE, SOLID, 1);
+         }
         }
 #endif
         if (!syscfg_get(NULL, "wan_physical_ifname", out_value, outbufsz))
