@@ -298,6 +298,18 @@ static int ethGetPHYRate
                 PHYRate = 1000;
                 break;
             }
+#ifdef _2_5G_ETHERNET_SUPPORT_
+            case CCSP_HAL_ETHSW_LINK_2_5Gbps:
+            {
+                PHYRate = 2500;
+                break;
+            }
+            case CCSP_HAL_ETHSW_LINK_5Gbps:
+            {
+                PHYRate = 5000;
+                break;
+            }
+#endif // _2_5G_ETHERNET_SUPPORT_
             case CCSP_HAL_ETHSW_LINK_10Gbps:
             {
                 PHYRate = 10000;
