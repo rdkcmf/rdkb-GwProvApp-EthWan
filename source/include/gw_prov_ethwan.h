@@ -39,6 +39,7 @@
  
 #ifndef _GW_GWPROV_ETHWAN_H_
 #define _GW_GWPROV_ETHWAN_H_
+#include<stdint.h>
 #if 0	
 /* 
 * Define callback function pointers which needs to be called
@@ -58,9 +59,30 @@ typedef struct __appCallBack
 	fpEthWanLink_Down	   pGWP_act_EthWanLinkDown;
 }appCallBack;
 #endif
+#ifdef AUTOWAN_ENABLE
+#define INFO  0
+#define WARNING  1
+#define ERROR 2
+
+#define DEBUG_INI_NAME  "/etc/debug.ini"
+#define COMP_NAME "LOG.RDK.GWPROVETHWAN"
+#define LOG_INFO 4
+
+#ifdef FEATURE_SUPPORT_RDKLOG
+#define GWPROVETHWANLOG(fmt ...)    {\
+                                    char log_buff[1024];\
+				    				snprintf(log_buff, 1023, fmt);\
+                                    RDK_LOG(LOG_INFO, COMP_NAME, "%s", log_buff);\
+                                    fflush(stdout);\
+                                 }
+#else
+#define GWPROVETHWANLOG printf
+#endif
+#endif
+
 typedef struct
 {
-   uint8_t hw[6];
+  char  hw[6];
 } macaddr_t;
 void startWebUIProcess();
 typedef unsigned char       Uint8;
