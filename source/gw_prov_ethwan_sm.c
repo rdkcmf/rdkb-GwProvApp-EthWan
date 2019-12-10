@@ -65,6 +65,9 @@
 #include <pthread.h>
 #include "stdbool.h"
 #include "gw_prov_ethwan.h"
+#ifdef AUTOWAN_ENABLE
+#include "autowan.h"
+#endif
 #include "ccsp_hal_ethsw.h"
 #include "platform_hal.h"
 #ifdef FEATURE_SUPPORT_RDKLOG
@@ -80,8 +83,13 @@
 /**************************************************************************/
 static int sysevent_fd;
 static token_t sysevent_token;
+#ifdef AUTOWAN_ENABLE
+int sysevent_fd_gs;
+token_t sysevent_token_gs;
+#else
 static int sysevent_fd_gs;
 static token_t sysevent_token_gs;
+#endif
 static pthread_t sysevent_tid;
 #if defined(_PLATFORM_IPQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)
 static pthread_t linkstate_tid;
@@ -124,6 +132,7 @@ static uint32_t cb_registration_cnt;
 
 #define BRG_INST_SIZE 5
 #define BUF_SIZE 256
+#if !defined(AUTOWAN_ENABLE)
 #ifdef FEATURE_SUPPORT_RDKLOG
 #define GWPROVETHWANLOG(fmt ...)    {\
                                     char log_buff[1024];\
@@ -134,6 +143,8 @@ static uint32_t cb_registration_cnt;
 #else
 #define GWPROVETHWANLOG printf
 #endif
+#endif
+
 
 //Note: By Moving this headerfile inclusion to "INCLUDES:" block, may run into build issues
 #include "mso_mgmt_hal.h"
@@ -1417,6 +1428,9 @@ static int GWP_ETHWAN_Init()
             status = -1;
         }
     }
+#ifdef AUTOWAN_ENABLE
+    AutoWAN_main();
+#endif
     GWPROVETHWANLOG("Exiting from %s\n",__FUNCTION__);
     return status;
 }
