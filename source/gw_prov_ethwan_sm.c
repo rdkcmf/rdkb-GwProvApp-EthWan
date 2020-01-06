@@ -55,7 +55,9 @@
 #include <sys/stat.h>
 #if !defined(_PLATFORM_IPQ) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
 #include <sys/types.h>
+#if !defined(INTEL_PUMA7)
 #include <ruli.h>
+#endif
 #endif
 #include <unistd.h>
 #include <sysevent/sysevent.h>
@@ -95,6 +97,17 @@ static uint32_t cb_registration_cnt;
 #define LOG_INFO 4
 #define ER_NETDEVNAME "erouter0"
 #define NETUTILS_IPv6_GLOBAL_ADDR_LEN             128
+
+/* ETH WAN Fallback Interface Name - Should eventually move away from Compile Time */
+#if defined (_XB7_PRODUCT_REQ_) && defined (_COSA_BCM_ARM_)
+#define ETHWAN_DEF_INTF_NAME "eth3"
+#elif defined (INTEL_PUMA7)
+#define ETHWAN_DEF_INTF_NAME "nsgmii0"
+#elif defined(_PLATFORM_TURRIS_)
+#define ETHWAN_DEF_INTF_NAME "eth2"
+#else
+#define ETHWAN_DEF_INTF_NAME "eth0"
+#endif
 
 
 /* Syscfg keys used for calculating mac addresses of local interfaces and bridges */
@@ -1130,19 +1143,13 @@ static int GWP_act_ProvEntry_callback()
        return -1;
     }
 
-#ifdef _XB7_PRODUCT_REQ_
-    system("ifconfig eth3 down");
     memset(command,0,sizeof(command));
-    sprintf(command, "ip link set eth3 name %s", wanPhyName);
-#elif defined(_PLATFORM_TURRIS_)
+    sprintf(command, "ifconfig %s down", ETHWAN_DEF_INTF_NAME);
+    printf("****************value of command = %s**********************\n", command);
+    system(command);
+
     memset(command,0,sizeof(command));
-    system("ifconfig eth2 down");
-    sprintf(command, "ip link set eth2 name %s", wanPhyName);
-#else
-    system("ifconfig eth0 down");
-    memset(command,0,sizeof(command));
-    sprintf(command, "ip link set eth0 name %s", wanPhyName);
-#endif    
+    sprintf(command, "ip link set %s name %s", ETHWAN_DEF_INTF_NAME, wanPhyName);
     printf("****************value of command = %s**********************\n", command);
     system(command);
     memset(command,0,sizeof(command));
@@ -1173,7 +1180,7 @@ static int GWP_act_ProvEntry_callback()
 {
     int i;
     int sysevent_bridge_mode = 0;
-    char command[64];
+    char command[100];
     char wanPhyName[20];
     char out_value[20];
     int outbufsz = sizeof(out_value);
@@ -1218,19 +1225,18 @@ static int GWP_act_ProvEntry_callback()
 	{
 		//Fallback case needs to set it default
 		memset( ethwan_ifname , 0, sizeof( ethwan_ifname ) );
-#ifdef _XB7_PRODUCT_REQ_
-		sprintf( ethwan_ifname , "%s", "eth3" );
-#else
-        sprintf( ethwan_ifname , "%s", "eth0" );
-#endif
+		sprintf( ethwan_ifname , "%s", ETHWAN_DEF_INTF_NAME );
 		GWPROVETHWANLOG(" Failed to get EthWanInterfaceName: %s \n", ethwan_ifname );		
 	}
 
 		GWPROVETHWANLOG(" EthWanInterfaceName: %s \n", ethwan_ifname ); 
 
         macaddr_t macAddr;
-
+#if defined(INTEL_PUMA7)
+        getNetworkDeviceMacAddress(&macAddr);
+#else
         getWanMacAddress(&macAddr);
+#endif
                 printf("eRouter macAddr ");
                 for (i=0;i<6;i++)
 		{
@@ -1244,9 +1250,11 @@ static int GWP_act_ProvEntry_callback()
     sprintf(command, "ifconfig %s down", ethwan_ifname);
     system(command);
 
+#if !defined(INTEL_PUMA7)
     memset(command,0,sizeof(command));
     sprintf(command, "vlan_util del_interface brlan0 %s", ethwan_ifname);
     system(command);
+#endif
 
 #ifdef _COSA_BCM_ARM_
     sprintf(command, "ifconfig %s down; ip link set %s name cm0", wanPhyName,wanPhyName);
@@ -1262,6 +1270,26 @@ static int GWP_act_ProvEntry_callback()
     #endif
     printf("****************value of command = %s**********************\n", command);
     system(command);
+
+#if defined(INTEL_PUMA7)
+    memset(command,0,sizeof(command));
+    snprintf(command, sizeof(command), "brctl addif %s dpdmta1",wanPhyName);
+    printf("****************value of command = %s**********************\n", command);
+    system(command);
+    memset(command,0,sizeof(command));
+    snprintf(command, sizeof(command), "echo 1 > /sys/devices/virtual/net/%s/bridge/nf_disable_iptables",wanPhyName);
+    printf("****************value of command = %s**********************\n", command);
+    system(command);
+    memset(command,0,sizeof(command));
+    snprintf(command, sizeof(command), "echo 1 > /sys/devices/virtual/net/%s/bridge/nf_disable_ip6tables",wanPhyName);
+    printf("****************value of command = %s**********************\n", command);
+    system(command);
+    memset(command,0,sizeof(command));
+    snprintf(command, sizeof(command), "echo 1 > /sys/devices/virtual/net/%s/bridge/nf_disable_arptables",wanPhyName);
+    printf("****************value of command = %s**********************\n", command);
+    system(command);
+#endif
+  
     memset(command,0,sizeof(command));
     sprintf(command, "sysctl -w net.ipv6.conf.%s.autoconf=0", ethwan_ifname); // Fix: RDKB-22835, disabling IPv6 for ethwan port
     printf("****************value of command = %s**********************\n", command);
@@ -1308,6 +1336,12 @@ static int GWP_act_ProvEntry_callback()
     printf("************************value of command = %s\***********************n", command);
     system(command);
                                 
+#ifdef INTEL_PUMA7
+    memset(command,0,sizeof(command));
+    sprintf(command, "ifconfig %s up",ethwan_ifname);
+    printf("************************value of command = %s\***********************n", command);
+    system(command);
+#endif
 
     system("sysevent set bridge_mode 0"); // to boot in router mode
     system("syscfg set eth_wan_enabled true"); // to handle Factory reset case
