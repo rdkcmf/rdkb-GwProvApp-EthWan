@@ -263,7 +263,6 @@ static int GWP_EthWanLinkDown_callback()
 	GwProvSetLED(YELLOW, BLINK, 1);
 #endif
         system("sysevent set wan-stop");
-	system("ifconfig erouter0 up");
 	return 0;
 }
 #if !defined(_PLATFORM_IPQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
