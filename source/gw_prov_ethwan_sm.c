@@ -346,6 +346,7 @@ static int GWP_EthWanLinkUp_callback()
         int outbufsz = sizeof(out_value);
         char redirFlag[10]={0};
         char captivePortalEnable[10]={0};
+
 #if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
         if (!syscfg_get(NULL, "redirection_flag", redirFlag, sizeof(redirFlag)) && !syscfg_get(NULL, "CaptivePortal_Enable", captivePortalEnable, sizeof(captivePortalEnable))){
           if (!strcmp(redirFlag,"true") && !strcmp(captivePortalEnable,"true"))
@@ -381,13 +382,22 @@ static int GWP_EthWanLinkUp_callback()
 #else
         system("sysevent set wan-start");
 #endif
-        int i = 1;
 	    system("sysevent set ethwan-initialized 1");
 		system("syscfg set eth_wan_enabled true"); // to handle Factory reset case
 		system("syscfg set ntp_enabled 1"); // Enable NTP in case of ETHWAN
 		system("syscfg commit");
 #if !defined(_PLATFORM_IPQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
-        GWPROVETHWANLOG("WAN_MODE: Ethernet %d\n", ethGetPHYRate(i));
+        unsigned int ethWanPort = 0xffffffff;
+
+        if (RETURN_OK == CcspHalExtSw_getEthWanPort(&ethWanPort) )
+        {
+        	ethWanPort += CCSP_HAL_ETHSW_EthPort1; /* ethWanPort starts from 0*/
+        	GWPROVETHWANLOG("WAN_MODE: Ethernet %d\n", ethGetPHYRate(ethWanPort));
+        }
+        else
+        {
+        	GWPROVETHWANLOG("WAN_MODE: Ethernet WAN Port Couldn't Be Retrieved\n");
+        }
 #endif
         return 0;
 }
