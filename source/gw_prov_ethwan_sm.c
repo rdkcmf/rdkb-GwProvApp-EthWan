@@ -113,6 +113,8 @@ static uint32_t cb_registration_cnt;
 #define ETHWAN_DEF_INTF_NAME "nsgmii0"
 #elif defined(_PLATFORM_TURRIS_)
 #define ETHWAN_DEF_INTF_NAME "eth2"
+#elif defined(_CBR2_PRODUCT_REQ_)
+#define ETHWAN_DEF_INTF_NAME "eth5"
 #else
 #define ETHWAN_DEF_INTF_NAME "eth0"
 #endif
