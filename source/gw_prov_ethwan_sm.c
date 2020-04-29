@@ -556,6 +556,7 @@ static void *GWPEthWan_linkstate_threadfunc(void *data)
         return (void *) -1;
     }
     char previousLinkStatus[10] = "down";
+    char previousLinkDetected[10] = "no";
     if (!syscfg_get(NULL, "wan_physical_ifname", out_value, outbufsz))
     {
         strcpy(wanPhyName, out_value);
@@ -567,7 +568,8 @@ static void *GWPEthWan_linkstate_threadfunc(void *data)
             free(buff);
         return (void *) -1;
     }
-    sprintf(command, "cat /sys/class/net/%s/operstate", wanPhyName);
+    //sprintf(command, "cat /sys/class/net/%s/operstate", wanPhyName);
+    sprintf(command, "ethtool %s | grep \"Link detected\" | cut -d ':' -f2 | cut -d ' ' -f2", wanPhyName);
 
     while(1)
     {
@@ -592,17 +594,17 @@ static void *GWPEthWan_linkstate_threadfunc(void *data)
 
         /* close */
         pclose(fp);
-        if(!strcmp(buff, (const char *)previousLinkStatus))
+        if(!strcmp(buff, (const char *)previousLinkDetected))
         {
             printf("Link status not changed\n");
         }
         else
         {
-            if(!strcmp(buff, "up"))
+            if(!strcmp(buff, "yes"))
             {
                 GWP_EthWanLinkUp_callback();
             }
-            else if(!strcmp(buff, "down"))
+            else if(!strcmp(buff, "no"))
             {
                 GWP_EthWanLinkDown_callback();
             }
@@ -612,7 +614,13 @@ static void *GWPEthWan_linkstate_threadfunc(void *data)
                 continue;
             }
             memset(previousLinkStatus,0,sizeof(previousLinkStatus));
-            strcpy((char *)previousLinkStatus, buff);
+	    if(strcmp(buff,"yes") == 0)
+	            strcpy((char *)previousLinkStatus, "up");
+	    else	
+	            strcpy((char *)previousLinkStatus, "down");
+            memset(previousLinkDetected,0,sizeof(previousLinkDetected));
+            strcpy((char *)previousLinkDetected, buff);
+	    printf("Previous Ethernet status :%s\n", (char *)previousLinkStatus);
         }
         sleep(5);
     }
