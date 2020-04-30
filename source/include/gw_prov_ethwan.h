@@ -82,7 +82,7 @@ typedef struct __appCallBack
 
 typedef struct
 {
-  char  hw[6];
+  uint8_t  hw[6];
 } macaddr_t;
 void startWebUIProcess();
 typedef unsigned char       Uint8;
