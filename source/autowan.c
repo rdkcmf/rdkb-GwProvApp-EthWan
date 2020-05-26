@@ -1,6 +1,6 @@
 #ifdef AUTOWAN_ENABLE
 #include <stdio.h>
-
+#include <string.h>
 #include<unistd.h> 
 #include<errno.h> 
 #include<sys/types.h> 
@@ -228,6 +228,9 @@ void WanMngrThread()
 		AUTO_WAN_LOG("Booting-Up in SelectedWanMode - %s\n",WanModeStr(GetSelectedWanMode()));
 		SetLastKnownWanMode(WAN_MODE_ETH);
 		SetCurrentWanMode(WAN_MODE_ETH);
+            #if defined(INTEL_PUMA7)
+                system("cmctl down");
+            #endif
 		#ifdef _SIMULATE_PC_
 		system("killall udhcpc");
 		system("udhcpc -i eth1 &");
@@ -313,6 +316,13 @@ int ManageWanModes(int mode)
 	    if(try_mode == mode)
 	    {
 		AUTO_WAN_LOG("%s - WanMode %s is Locked, Set Current operational mode, reboot is not required\n",__FUNCTION__,WanModeStr(mode));
+#if defined(INTEL_PUMA7)
+                if(try_mode == WAN_MODE_ETH)
+                {
+                    AUTO_WAN_LOG("%s - Shutting down DOCSIS\n", __FUNCTION__);
+                    system("cmctl down");
+                }
+#endif
             }
 	    else
 	    {
@@ -342,7 +352,7 @@ int CheckWanConnection(int mode)
     int retry = 0;
     int WanLocked = 0;
     int ret = 0;
-char pRfSignalStatus = 0;
+//char pRfSignalStatus = 0;
     while(retry < AUTOWAN_RETRY_CNT)
 	{
 	    retry++;
@@ -383,11 +393,42 @@ int CheckWanStatus(int mode)
    char buff[256] = {0};
    char command[256] = {0};
    FILE *fp;
-   char *temp = NULL;
+#if defined(INTEL_PUMA7)
    char *found = NULL;
-   memset(buff,0,sizeof(buff));
-   memset(command,0,sizeof(command));
 
+    int ret = 0;
+
+    if(mode == WAN_MODE_ETH)
+    {
+        sysevent_get(sysevent_fd_gs, sysevent_token_gs, "wan-status", buff, sizeof(buff));
+        if (!strncmp(buff, "started", sizeof(buff))) {
+            return 0;
+        }
+    }
+    if(mode == WAN_MODE_DOCSIS)
+    {
+        /* Get DOCSIS Connection CMStatus */
+        ret = docsis_getCMStatus(buff);
+        if( ret == RETURN_ERR )
+        {
+            AUTO_WAN_LOG("AUTOWAN failed to get CMStatus\n");
+            return 1;
+        }
+        /* Validate DOCSIS Connection CMStatus */
+        AUTO_WAN_LOG("%s - CM Status = %s\n", __FUNCTION__, buff);
+        found = strstr(buff, "OPERATIONAL");
+        if(found)
+        {
+            AUTO_WAN_LOG("AUTOWAN DOCSIS wan locked\n");
+            return 0;
+        }
+        else
+        {
+            AUTO_WAN_LOG("AUTOWAN DOCSIS wan not locked\n");
+            return 1;
+        }
+    }
+#else
 	sysevent_get(sysevent_fd_gs, sysevent_token_gs, "current_wan_state", buff, sizeof(buff));
 
 	if (!strcmp(buff, "up")) {
@@ -396,7 +437,7 @@ int CheckWanStatus(int mode)
 	if(mode == WAN_MODE_DOCSIS)
 	{
 
-		/* Validate IPv4 Connection on ETHWAN interface */
+		/* Validate IPv4 Connection on DOCSIS interface */
 		sprintf(command, "ifconfig %s |grep -i 'inet ' |awk '{print $2}' |cut -f2 -d:", DOCSIS_INF_NAME);
                memset(buff,0,sizeof(buff));
 
@@ -422,7 +463,7 @@ int CheckWanStatus(int mode)
 				return 0; // Shirish To-Do // Call validate IP function for GLOBAL IP check
 			}
                }
-		/* Validate IPv6 Connection on ETHWAN interface */
+		/* Validate IPv6 Connection on DOCSIS interface */
 		memset(command,0,sizeof(command));
 		sprintf(command, "ifconfig %s |grep -i 'inet6 ' |grep -i 'Global' |awk '{print $3}'", DOCSIS_INF_NAME);
 		memset(buff,0,sizeof(buff));
@@ -449,7 +490,7 @@ int CheckWanStatus(int mode)
 			}
                }
 	}
-
+#endif
 
 return 1;
 }
@@ -458,14 +499,14 @@ int TryAltWan(int *mode)
 {
 int ret = 0;
 char pRfSignalStatus = 0;
-char command[64];
-memset(command,0,sizeof(command));
+    char command[64] = {0};
+
     if(*mode == WAN_MODE_DOCSIS)
     {
         *mode = WAN_MODE_ETH;
 
 	    CosaDmlEthWanSetEnable(TRUE);
-        memset(command,0,sizeof(command));
+#if !defined(INTEL_PUMA7)
         sprintf(command,"brctl delif brlan0 %s",ETHWAN_INF_NAME);
         system(command);
 //	system("brctl delif brlan0 eth3");
@@ -486,7 +527,7 @@ memset(command,0,sizeof(command));
     system(command);
 //	system("udhcpc -i eth3 &");
 		system("killall udhcpc");
-
+#endif
     }
     else
     {
@@ -506,6 +547,7 @@ memset(command,0,sizeof(command));
         *mode = WAN_MODE_DOCSIS;
 	    CosaDmlEthWanSetEnable(FALSE);
 
+#if !defined(INTEL_PUMA7)
 		system("killall udhcpc");
         memset(command,0,sizeof(command));
         sprintf(command,"brctl delif erouter0 %s",DOCSIS_INF_NAME);
@@ -520,6 +562,7 @@ memset(command,0,sizeof(command));
         system(command);
 		//system("sysctl -w net.ipv6.conf.cm0.accept_ra=2");
 		//	system("udhcpc -i cm0 &");
+#endif
     }
     AUTO_WAN_LOG("%s - Trying Alternet WanMode - %s\n",__FUNCTION__,WanModeStr(*mode));
 }
@@ -587,10 +630,11 @@ CosaDmlEthWanSetEnable
         BOOL                       bEnable
     )
 {
-#if (defined (_COSA_BCM_ARM_) && !defined(_CBR_PRODUCT_REQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_))
+#if ((defined (_COSA_BCM_ARM_) && !defined(_CBR_PRODUCT_REQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)) || defined(INTEL_PUMA7))
         BOOL bGetStatus = FALSE;
         //CcspHalExtSw_getEthWanEnable(&bGetStatus);
 	//if (bEnable != bGetStatus)
+#if !defined(INTEL_PUMA7)
 	{
 	   if(bEnable == FALSE)
 	   {
@@ -605,6 +649,7 @@ CosaDmlEthWanSetEnable
 		
 	   } 
 	}
+#endif
 
 	CcspHalExtSw_setEthWanPort ( ETHWAN_DEF_INTF_NUM );
 
