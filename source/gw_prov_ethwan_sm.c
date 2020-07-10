@@ -178,6 +178,7 @@ static void LAN_start();
 static int hotspot_started = 0;
 static appCallBack *obj_l[CB_REG_CNT_MAX];
 unsigned char ethwan_ifname[ 64 ];
+static unsigned char tftpserverStarted = FALSE;
 #if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
 int
 GwProvSetLED
@@ -1548,6 +1549,20 @@ static void LAN_start() {
 
         return;
 }
+//#define EROUTER_PRIV_NET(X)      "172.31.255." #X /* X=25 is CM and X=40 is eRouter */
+static void GWP_CreateTFTPServerForCMConsoleLogs()
+{
+ 	char cmd[BUF_SIZE]; 
+ 	if (!tftpserverStarted)
+ 	{	
+	 	//snprintf(cmd,sizeof(cmd), "/usr/bin/udpsvd -E %s 69 /usr/sbin/tftpd -c /var/tftpboot &", EROUTER_PRIV_NET(40));
+          	snprintf(cmd,sizeof(cmd), "/usr/bin/udpsvd -E %s 69 /usr/sbin/tftpd -c /var/tftpboot &","172.31.255.40");
+		if (system(cmd) == -1)
+			fprintf(stderr,"%s failed\n", cmd);
+		else
+		 	tftpserverStarted = TRUE;
+ 	}
+}
 
 /**************************************************************************/
 /*! \fn int main(int argc, char *argv)
@@ -1608,6 +1623,12 @@ int main(int argc, char *argv[])
 	GWPROVETHWANLOG("GWP_ETHWAN Creating RegisterEthWan Handler\n");
 #if !defined (_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
 	GWP_RegisterEthWan_Callback ( obj );
+       //As per Broadcom Comments which mentioned in TCXB6-8538
+        //To get the CM console logs creation of tftpserver is required
+        //In case of docsis ccsp-gwprovapp will call eSafeDevice_Initialize which will install Brcm tftp server.
+        // In case of ccsp-gwprovapp-ethwan we should create the tftp server 
+        GWP_CreateTFTPServerForCMConsoleLogs();
+
 #endif
 	GWPROVETHWANLOG("GWP_ETHWAN Creating RegisterEthWan Handler over\n");
 
