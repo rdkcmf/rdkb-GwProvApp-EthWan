@@ -605,11 +605,9 @@ CosaDmlEthWanSetEnable
 		
 	   } 
 	}
-#ifdef _XB7_PRODUCT_REQ_
-			CcspHalExtSw_setEthWanPort ( 3 ); // need to set it to 3 eth3 interface for XB7
-#else
-			CcspHalExtSw_setEthWanPort ( 0 ); // need to set it to 0 eth0 interface after  TCXB6-4234 getting fixed
-#endif
+
+	CcspHalExtSw_setEthWanPort ( ETHWAN_DEF_INTF_NUM );
+
 	if ( RETURN_OK == CcspHalExtSw_setEthWanEnable( bEnable ) ) 
 	{
 	 	//pthread_t tid;		
