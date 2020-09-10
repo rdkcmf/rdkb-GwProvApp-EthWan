@@ -355,6 +355,51 @@ static int ethGetPHYRate
 }
 #endif
 
+static bool GWP_isPppdRunning()
+{
+    bool ret = false;
+    FILE *fp = NULL;
+    char cmd_out[1024] = {0};
+    int pppd_pid = 0;
+
+    fp = popen("pidof pppd 2>&1", "r");
+    if (fp == NULL) {
+        printf("Command failed to run\n" );
+        return ret;
+    }
+    if(fgets(cmd_out, sizeof(cmd_out), fp) != NULL) {
+        pppd_pid = atoi(cmd_out);
+        if( 0 != pppd_pid){
+            printf("pppd deamon pid: %d \n", pppd_pid);
+            ret = true;
+        }
+    }
+    pclose(fp);
+    return ret;
+}
+
+
+
+static int GWP_isWanIfcUp()
+{
+    int retval = 0;
+    FILE *fp = NULL;
+    char cmd_status[1024] = {0};
+    fp = popen("ifconfig  erouter0 2>&1", "r");
+    if (fp == NULL) {
+        GWPROVETHWANLOG("Command failed to run\n" );
+        return -1;
+    }
+    if(fgets(cmd_status, sizeof(cmd_status), fp) != NULL) {
+        if(strstr (cmd_status, "error")){
+            GWPROVETHWANLOG("erouter0 interface is down");
+            retval = -1;
+        }
+    }
+    pclose(fp);
+    return retval;
+}
+
 static int GWP_EthWanLinkUp_callback()
 {
 	GWPROVETHWANLOG(" Entry %s \n", __FUNCTION__);
@@ -398,11 +443,13 @@ static int GWP_EthWanLinkUp_callback()
 #if defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)
 	system("sysevent set wan-start;sysevent set sshd-restart");
         sleep(50);
+	if( 0 == GWP_isWanIfcUp()) {
         system("sysevent set current_ipv4_link_state up");
         system("sysevent set ipv4_wan_ipaddr `ifconfig erouter0 | grep \"inet addr\" | cut -d':' -f2 | awk '{print$1}'`");
         system("sysevent set ipv4_wan_subnet `ifconfig erouter0 | grep \"inet addr\" | cut -d':' -f4 | awk '{print$1}'`");
         system("sysevent set wan_service-status started");
         system("sysevent set bridge_mode `syscfg get bridge_mode`");
+	}
 #else
         system("sysevent set wan-start");
 #endif
@@ -585,24 +632,34 @@ static void *GWPEthWan_linkstate_threadfunc(void *data)
         FILE *fp;
         memset(buff,0,sizeof(buff));
 
-        /* Open the command for reading. */
-        fp = popen(command, "r");
-        if (fp == NULL)
+        if ( GWP_isPppdRunning() )
         {
-            printf("<%s>:<%d> Error popen\n", __FUNCTION__, __LINE__);
-	    continue;
+           if( 0 == GWP_isWanIfcUp())
+                strcpy(buff, "up");
+           else
+                strcpy(buff, "down");
         }
-         /* Read the output a line at a time - output it. */
-        while (fgets(buff, 50, fp) != NULL)
+        else
         {
-            /*printf("Ethernet status :%s", buff);*/
-            temp = strchr(buff, '\n');
-            if(temp)
-                *temp = '\0';
-        }
+            /* Open the command for reading. */
+            fp = popen(command, "r");
+            if (fp == NULL)
+            {
+                printf("<%s>:<%d> Error popen\n", __FUNCTION__, __LINE__);
+	        continue;
+            }
+            /* Read the output a line at a time - output it. */
+            while (fgets(buff, 50, fp) != NULL)
+            {
+                /*printf("Ethernet status :%s", buff);*/
+                temp = strchr(buff, '\n');
+                if(temp)
+                    *temp = '\0';
+            }
 
-        /* close */
-        pclose(fp);
+            /* close */
+            pclose(fp);
+        }
         if(!strcmp(buff, (const char *)previousLinkStatus))
         {
             printf("Link status not changed\n");
@@ -1154,19 +1211,39 @@ static int GWP_act_ProvEntry_callback()
        return -1;
     }
 
-    memset(command,0,sizeof(command));
-    sprintf(command, "ifconfig %s down", ETHWAN_DEF_INTF_NAME);
-    printf("****************value of command = %s**********************\n", command);
-    system(command);
+    // Don't rename eth0 to erouter0 if wan proto is pppoe
+    memset(out_value,0,sizeof(out_value));
+    if (!syscfg_get(NULL, "wan_proto", out_value, outbufsz))
+    {
+        printf("wan proto  = %s\n", out_value);
 
-    memset(command,0,sizeof(command));
-    sprintf(command, "ip link set %s name %s", ETHWAN_DEF_INTF_NAME, wanPhyName);
-    printf("****************value of command = %s**********************\n", command);
-    system(command);
-    memset(command,0,sizeof(command));
-    sprintf(command, "ifconfig %s up", wanPhyName);
-    printf("************************value of command = %s\***********************n", command);
-    system(command);
+        if ( 0 != strcmp(out_value, "pppoe") )
+        {
+            memset(command,0,sizeof(command));
+            sprintf(command, "ifconfig %s down", ETHWAN_DEF_INTF_NAME);
+            printf("****************value of command = %s**********************\n", command);
+            system(command);
+
+            memset(command,0,sizeof(command));
+            sprintf(command, "ip link set %s name %s", ETHWAN_DEF_INTF_NAME, wanPhyName);
+            printf("****************value of command = %s**********************\n", command);
+            system(command);
+
+            memset(command,0,sizeof(command));
+            sprintf(command, "ifconfig %s up", wanPhyName);
+            printf("************************value of command = %s\***********************n", command);
+            system(command);
+        }
+        else
+        {
+            printf("wan proto  = %s\n", out_value);
+            memset(command,0,sizeof(command));
+            sprintf(command, "ifconfig %s up", ETHWAN_DEF_INTF_NAME);
+            printf("****************value of command = %s**********************\n", command);
+            system(command);
+        }
+    }
+
 
     sysevent_fd = sysevent_open("127.0.0.1", SE_SERVER_WELL_KNOWN_PORT, SE_VERSION, "gw_prov_ethwan", &sysevent_token);
 
