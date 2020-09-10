@@ -55,9 +55,6 @@
 #include <sys/stat.h>
 #if !defined(_PLATFORM_IPQ) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
 #include <sys/types.h>
-#if !defined(INTEL_PUMA7)
-#include <ruli.h>
-#endif
 #endif
 #include <unistd.h>
 #include <sysevent/sysevent.h>
