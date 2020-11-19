@@ -1255,6 +1255,22 @@ static int GWP_act_ProvEntry_callback()
 
 		GWPROVETHWANLOG(" EthWanInterfaceName: %s \n", ethwan_ifname ); 
 
+        #if defined (_BRIDGE_UTILS_BIN_)
+
+            if ( syscfg_set( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
+            {
+                GWPROVETHWANLOG( "syscfg_set failed for eth_wan_iface_name\n" );
+            }
+            else
+            {
+                if ( syscfg_commit() != 0 )
+                {
+                    GWPROVETHWANLOG( "syscfg_commit failed for eth_wan_iface_name\n" );
+                }
+
+            }
+        #endif
+            
         macaddr_t macAddr;
 #if defined(INTEL_PUMA7)
         getNetworkDeviceMacAddress(&macAddr);

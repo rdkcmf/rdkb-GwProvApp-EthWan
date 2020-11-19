@@ -42,6 +42,9 @@ int g_SelectedWanMode 		= 0;
 int g_AutoWanRetryCnt 		= 0;
 int g_AutoWanRetryInterval 	= 0;
 
+#if defined (_BRIDGE_UTILS_BIN_)
+    int g_OvsEnable             = 0;
+#endif
 void IntializeAutoWanConfig();
 int GetCurrentWanMode();
 int GetSelectedWanMode();
@@ -94,6 +97,22 @@ void AutoWAN_main()
     int thread_status = 0;
     static pthread_t AutoWAN_tid;
     IntializeAutoWanConfig();
+    #if defined (_BRIDGE_UTILS_BIN_)
+      char buf[ 8 ] = { 0 };
+      if( 0 == syscfg_get( NULL, "mesh_ovs_enable", buf, sizeof( buf ) ) )
+      {
+          if ( strcmp (buf,"true") == 0 )
+            g_OvsEnable = 1;
+          else 
+            g_OvsEnable = 0;
+
+      }
+      else
+      {
+          AUTO_WAN_LOG("syscfg_get failed to retrieve ovs_enable\n");
+
+      }
+    #endif 
     thread_status = pthread_create(&AutoWAN_tid, NULL, WanMngrThread, NULL);
         if (thread_status == 0)
         {
@@ -597,10 +616,35 @@ int TryAltWan(int *mode)
         }
 
         AUTO_WAN_LOG("%s - mode= %s ethwan_ifname= %s, wanPhyName= %s\n",__FUNCTION__,WanModeStr(WAN_MODE_ETH),ethwan_ifname,wanPhyName);        
+        #if defined (_BRIDGE_UTILS_BIN_)
 
+            if ( syscfg_set( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
+            {
+                AUTO_WAN_LOG( "syscfg_set failed for eth_wan_iface_name\n" );
+            }
+            else
+            {
+                if ( syscfg_commit() != 0 )
+                {
+                    AUTO_WAN_LOG( "syscfg_commit failed for eth_wan_iface_name\n" );
+                }
 
-        snprintf(command,sizeof(command),"brctl delif brlan0 %s",ethwan_ifname);
+            }
+        #endif
+    
+        #if defined (_BRIDGE_UTILS_BIN_)
 
+          if (g_OvsEnable)
+          {
+              snprintf(command,sizeof(command),"/usr/bin/bridgeUtils del-port brlan0 %s",ethwan_ifname);
+          }
+          else
+          {
+              snprintf(command,sizeof(command),"brctl delif brlan0 %s",ethwan_ifname);
+          }
+        #else
+            snprintf(command,sizeof(command),"brctl delif brlan0 %s",ethwan_ifname);
+        #endif
 
         system(command);
         //  system("brctl delif brlan0 eth3");
@@ -689,7 +733,21 @@ void RevertTriedConfig(int mode)
         }
 
         AUTO_WAN_LOG("%s - ethwan_ifname= %s\n",__FUNCTION__,ethwan_ifname);
+        #if defined (_BRIDGE_UTILS_BIN_)
 
+            if ( syscfg_set( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
+            {
+                AUTO_WAN_LOG( "syscfg_set failed for eth_wan_iface_name\n" );
+            }
+            else
+            {
+                if ( syscfg_commit() != 0 )
+                {
+                    AUTO_WAN_LOG( "syscfg_commit failed for eth_wan_iface_name\n" );
+                }
+
+            }
+        #endif
         memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"ifconfig %s down",ethwan_ifname);
         system(command);
@@ -711,8 +769,19 @@ void RevertTriedConfig(int mode)
         system(command);
         //system("ifconfig eth3 up");
         memset(command,0,sizeof(command));
-        snprintf(command,sizeof(command),"brctl addif brlan0 %s",ethwan_ifname);
+        #if defined (_BRIDGE_UTILS_BIN_)
 
+          if (g_OvsEnable)
+          {
+              snprintf(command,sizeof(command),"/usr/bin/bridgeUtils add-port brlan0 %s",ethwan_ifname);
+          }
+          else
+          {
+              snprintf(command,sizeof(command),"brctl addif brlan0 %s",ethwan_ifname);
+          }
+        #else
+          snprintf(command,sizeof(command),"brctl addif brlan0 %s",ethwan_ifname);
+        #endif
 
         system(command);
         //system("brctl addif brlan0 eth3");
