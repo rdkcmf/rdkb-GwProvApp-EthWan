@@ -1243,7 +1243,7 @@ static int GWP_act_ProvEntry_callback()
 
 	//Get the ethwan interface name from HAL
 	memset( ethwan_ifname , 0, sizeof( ethwan_ifname ) );
-	if ( ( 0 != GWP_GetEthWanInterfaceName( ethwan_ifname ) ) )
+	if ( ( 0 != GWP_GetEthWanInterfaceName( ethwan_ifname, sizeof(ethwan_ifname) ) ) )
 	{
 		//Fallback case needs to set it default
 		memset( ethwan_ifname , 0, sizeof( ethwan_ifname ) );
@@ -1580,6 +1580,9 @@ int main(int argc, char *argv[])
     appCallBack *obj     =    NULL;
     char sysevent_cmd[80];
     int i;
+#if defined(_INTEL_BUG_FIXES_)
+    macaddr_t macAddr;
+#endif
     sleep(2);
 #ifdef FEATURE_SUPPORT_RDKLOG
     setenv("LOG4C_RCPATH","/rdklogger",1);
@@ -1631,6 +1634,13 @@ int main(int argc, char *argv[])
 
 #endif
 	GWPROVETHWANLOG("GWP_ETHWAN Creating RegisterEthWan Handler over\n");
+#if defined(_INTEL_BUG_FIXES_)
+    getNetworkDeviceMacAddress(&macAddr);
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%02x:%02x:%02x:%02x:%02x:%02x",
+        macAddr.hw[0],macAddr.hw[1],
+        macAddr.hw[2],macAddr.hw[3],
+        macAddr.hw[4],macAddr.hw[5]);
+#endif
 
     if ((syscfg_set(NULL, BASE_MAC_SYSCFG_KEY, sysevent_cmd) != 0))
     {
