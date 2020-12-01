@@ -2,11 +2,13 @@
 #include <stdio.h>
 #include <string.h>
 #include<unistd.h> 
+#include <stdlib.h>
 #include<errno.h> 
 #include<sys/types.h> 
 #include<sys/stat.h> 
 #include<fcntl.h> 
 #include "autowan.h"
+#include "ansc_wrapper_base.h"
 #include "cm_hal.h"
 #include "gw_prov_ethwan.h"
 #include "ccsp_hal_ethsw.h"
@@ -45,17 +47,19 @@ int g_AutoWanRetryInterval 	= 0;
 #if defined (_BRIDGE_UTILS_BIN_)
     int g_OvsEnable             = 0;
 #endif
+void SetCurrentWanMode(int mode);
+void ManageWanModes(int mode);
 void IntializeAutoWanConfig();
 int GetCurrentWanMode();
 int GetSelectedWanMode();
 int GetLastKnownWanMode();
 void CheckAltWan();
 void CheckWanModeLocked();
-void WanMngrThread();
+void* WanMngrThread(void * arg);
 void SelectedWanMode(int mode);
 void SetLastKnownWanMode(int mode);
 void HandleAutoWanMode(void);
-int TryAltWan(int *mode);
+void TryAltWan(int *mode);
 int CheckWanStatus();
 int CheckWanConnection(int mode);
 void RevertTriedConfig(int mode);
@@ -84,6 +88,7 @@ char* WanModeStr(int WanMode)
     {
          return "WAN_MODE_UNKNOWN";
     }
+    return "";
 }
 void LogWanModeInfo()
 {
@@ -231,8 +236,9 @@ void SetLastKnownWanMode(int mode)
         } 
 }
 
-void WanMngrThread()
+void* WanMngrThread(void* arg)
 {
+    UNREFERENCED_PARAMETER(arg);
     AUTO_WAN_LOG("%s\n",__FUNCTION__);
     pthread_detach(pthread_self());
     AUTO_WAN_LOG("%s Check if AutoWan is Enabled\n",__FUNCTION__);
@@ -271,7 +277,7 @@ void WanMngrThread()
         HandleAutoWanMode();
         break;   
     } 
-
+    return NULL;
 }
 
 void HandleAutoWanMode(void)
@@ -317,7 +323,7 @@ void HandleAutoWanMode(void)
     } 
 }
 
-int ManageWanModes(int mode)
+void ManageWanModes(int mode)
 {
     int try_mode = mode;
     int ret = 0;
@@ -575,11 +581,12 @@ int CheckWanStatus(int mode)
 return 1;
 }
 
-int TryAltWan(int *mode)
+void TryAltWan(int *mode)
 {
-    int ret = 0;
     char pRfSignalStatus = 0;
+#if !defined(AUTO_WAN_ALWAYS_RECONFIG_EROUTER) || defined(_COSA_BCM_ARM_)
     char command[64] = {0};
+#endif
 #if !defined(AUTO_WAN_ALWAYS_RECONFIG_EROUTER)
     char wanPhyName[20] = {0};
     char out_value[20] = {0};
@@ -684,7 +691,7 @@ int TryAltWan(int *mode)
        {
           AUTO_WAN_LOG("%s - Trying Alternet WanMode - %s\n",__FUNCTION__,WanModeStr(WAN_MODE_DOCSIS));
           AUTO_WAN_LOG("%s - Alternet WanMode - %s not present\n",__FUNCTION__,WanModeStr(WAN_MODE_DOCSIS));
-          return 1;
+          return ;
        }
 
        AUTO_WAN_LOG("AUTOWAN- %s Dosis present  - %d\n",__FUNCTION__,pRfSignalStatus);
@@ -821,12 +828,12 @@ CosaDmlEthWanSetEnable
     )
 {
 #if ((defined (_COSA_BCM_ARM_) && !defined(_CBR_PRODUCT_REQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)) || defined(INTEL_PUMA7) || defined(_CBR2_PRODUCT_REQ_))
-        BOOL bGetStatus = FALSE;
-        char command[64] = {0};
+        //BOOL bGetStatus = FALSE;
         //CcspHalExtSw_getEthWanEnable(&bGetStatus);
     //if (bEnable != bGetStatus)
 #if !defined(AUTO_WAN_ALWAYS_RECONFIG_EROUTER)
     {
+       char command[64] = {0};
        if(bEnable == FALSE)
        {
         system("ifconfig erouter0 down");

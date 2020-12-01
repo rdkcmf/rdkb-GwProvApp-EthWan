@@ -68,6 +68,7 @@
 #ifdef AUTOWAN_ENABLE
 #include "autowan.h"
 #endif
+#include "ansc_wrapper_base.h"
 #include "ccsp_hal_ethsw.h"
 #include "platform_hal.h"
 #ifdef FEATURE_SUPPORT_RDKLOG
@@ -94,8 +95,9 @@ static pthread_t sysevent_tid;
 #if defined(_PLATFORM_IPQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)
 static pthread_t linkstate_tid;
 #endif
+#if defined(_PLATFORM_IPQ_)
 static uint32_t cb_registration_cnt;
-
+#endif
 #define INFO  0
 #define WARNING  1
 #define ERROR 2
@@ -168,6 +170,10 @@ static uint32_t cb_registration_cnt;
 #define BLINK   1
 #define RED	3
 
+#if defined(INTEL_PUMA7) || defined(_INTEL_BUG_FIXES_)
+void getNetworkDeviceMacAddress(macaddr_t* macAddr);
+#endif
+
 static int pnm_inited = 0;
 static int netids_inited = 0;
 static int webui_started = 0;
@@ -176,10 +182,15 @@ static int once = 0;
 static void check_lan_wan_ready();
 static void LAN_start();
 static int hotspot_started = 0;
+#if defined(_PLATFORM_IPQ_)
 static appCallBack *obj_l[CB_REG_CNT_MAX];
+#endif
 unsigned char ethwan_ifname[ 64 ];
+#if !defined(_PLATFORM_IPQ_) && (!defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_))
 static unsigned char tftpserverStarted = FALSE;
+#endif
 #if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
+void SME_CreateEventHandler(appCallBack *pAppCallBack);
 int
 GwProvSetLED
     (
@@ -212,6 +223,9 @@ GwProvSetLED
 
 int GWPEthWan_SyseventGetStr(const char *name, unsigned char *out_value, int outbufsz)
 {
+    UNREFERENCED_PARAMETER(name);
+    UNREFERENCED_PARAMETER(out_value);
+    UNREFERENCED_PARAMETER(outbufsz);
   //Need to Implement
 
    return 0;		
@@ -227,6 +241,7 @@ int GWPEthWan_SyseventGetStr(const char *name, unsigned char *out_value, int out
  *  \brief Get Syscfg Integer Value
  *  \return int/-1
  **************************************************************************/
+#if defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)
 static int GWPETHWAN_SysCfgGetInt(const char *name)
 {
    char out_value[20];
@@ -243,6 +258,7 @@ static int GWPETHWAN_SysCfgGetInt(const char *name)
       return -1;
    }
 }
+#endif
 
 #if defined(_PLATFORM_IPQ_)
 /**************************************************************************/
@@ -357,7 +373,6 @@ static int ethGetPHYRate
     return PHYRate;
 }
 #endif
-
 static int GWP_EthWanLinkUp_callback()
 {
 	GWPROVETHWANLOG(" Entry %s \n", __FUNCTION__);
@@ -713,6 +728,7 @@ static void check_lan_wan_ready()
 **************************************************************************/
 static void *GWPEthWan_sysevent_handler(void *data)
 {
+    UNREFERENCED_PARAMETER(data);
     GWPROVETHWANLOG( "Entering into %s\n",__FUNCTION__);
     async_id_t ipv4_status_asyncid;
     async_id_t ipv6_status_asyncid;
@@ -930,9 +946,9 @@ static void *GWPEthWan_sysevent_handler(void *data)
                 // or bad things will happen
                 do
                 {
-                    unsigned char lan_status[20];
                     unsigned char wan_status[20];
 #if defined(_PLATFORM_IPQ_)
+                    unsigned char lan_status[20];
                     // Make sure lan-status is started first...
                    lan_status[0] = '\0';
                     if (GWPEthWan_SyseventGetStr("lan-status", lan_status, sizeof(lan_status)) < 0)
@@ -1116,6 +1132,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
     }
 
     GWPROVETHWANLOG("Exiting from %s\n",__FUNCTION__);
+    return NULL;
 }
 
 #if defined(_PLATFORM_IPQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)
@@ -1178,7 +1195,7 @@ static int GWP_act_ProvEntry_callback()
     system(command);
     memset(command,0,sizeof(command));
     sprintf(command, "ifconfig %s up", wanPhyName);
-    printf("************************value of command = %s\***********************n", command);
+    printf("************************value of command = %s***********************\n", command);
     system(command);
 
     sysevent_fd = sysevent_open("127.0.0.1", SE_SERVER_WELL_KNOWN_PORT, SE_VERSION, "gw_prov_ethwan", &sysevent_token);
@@ -1202,8 +1219,6 @@ static int GWP_act_ProvEntry_callback()
 #else
 static int GWP_act_ProvEntry_callback()
 {
-    int i;
-    int sysevent_bridge_mode = 0;
     char command[100];
     char wanPhyName[20];
     char out_value[20];
@@ -1277,12 +1292,13 @@ static int GWP_act_ProvEntry_callback()
 #else
         getWanMacAddress(&macAddr);
 #endif
-                printf("eRouter macAddr ");
-                for (i=0;i<6;i++)
-		{
-                   printf("%2x ",macAddr.hw[i]);
-		}
-                printf(" \n");
+    int i =0;
+    printf("eRouter macAddr ");
+    for (i=0;i<6;i++)
+    {
+       printf("%2x ",macAddr.hw[i]);
+    }
+    printf(" \n");
     char wan_mac[18];// = {0};
     sprintf(wan_mac, "%02x:%02x:%02x:%02x:%02x:%02x",macAddr.hw[0],macAddr.hw[1],macAddr.hw[2],macAddr.hw[3],macAddr.hw[4],macAddr.hw[5]);
 
@@ -1340,7 +1356,7 @@ static int GWP_act_ProvEntry_callback()
     system(command);
     memset(command,0,sizeof(command));
     sprintf(command, "ifconfig %s hw ether %s", ethwan_ifname,wan_mac);
-    printf("************************value of command = %s\***********************n", command);
+    printf("************************value of command = %s***********************\n", command);
     system(command);
     memset(command,0,sizeof(command));
     sprintf(command, "ip6tables -I OUTPUT -o %s -p icmpv6 -j DROP", ethwan_ifname);
@@ -1363,23 +1379,23 @@ static int GWP_act_ProvEntry_callback()
     system(command);
     memset(command,0,sizeof(command));
     sprintf(command, "ifconfig %s hw ether %s", wanPhyName,wan_mac);
-    printf("************************value of command = %s\***********************n", command);
+    printf("************************value of command = %s***********************\n", command);
     system(command);
     memset(command,0,sizeof(command));
     platform_hal_GetBaseMacAddress(wan_mac);
-    printf("************************cmmac = %s\***********************n", wan_mac);
+    printf("************************cmmac = %s***********************\n", wan_mac);
     sprintf(command, "sysevent set eth_wan_mac %s", wan_mac);
     system(command);
       // setNetworkDeviceMacAddress(ER_NETDEVNAME,&macAddr);
     memset(command,0,sizeof(command));
     sprintf(command, "ifconfig %s up", wanPhyName);
-    printf("************************value of command = %s\***********************n", command);
+    printf("************************value of command = %s************************\n", command);
     system(command);
                                 
 #ifdef INTEL_PUMA7
     memset(command,0,sizeof(command));
     sprintf(command, "ifconfig %s up",ethwan_ifname);
-    printf("************************value of command = %s\***********************n", command);
+    printf("************************value of command = %s***********************\n", command);
     system(command);
 #endif
 
@@ -1429,11 +1445,11 @@ static bool GWPEthWan_Register_sysevent()
     return status;
 }
 
+#if !defined(_PLATFORM_IPQ_)
 static int GWP_ETHWAN_Init()
 {
     int status = 0;
     int thread_status = 0;
-    char thread_name[THREAD_NAME_LEN];
     GWPROVETHWANLOG("Entering into %s\n",__FUNCTION__);
 
     if (GWPEthWan_Register_sysevent() == false)
@@ -1463,9 +1479,11 @@ static int GWP_ETHWAN_Init()
     GWPROVETHWANLOG("Exiting from %s\n",__FUNCTION__);
     return status;
 }
+#endif
 
 static bool checkIfAlreadyRunning(const char* name)
 {
+    UNREFERENCED_PARAMETER(name);
     GWPROVETHWANLOG("Entering into %s\n",__FUNCTION__);
     bool status = true;
 
@@ -1494,7 +1512,7 @@ static bool checkIfAlreadyRunning(const char* name)
     return status;
 }
 
-
+#if 0
 static void daemonize(void) 
 {
     GWPROVETHWANLOG("Entering into %s\n",__FUNCTION__);
@@ -1538,6 +1556,7 @@ static void daemonize(void)
     }
 #endif
 }
+#endif
 
 static void LAN_start() {
         GWPROVETHWANLOG("Utopia starting lan...\n");
@@ -1568,6 +1587,7 @@ static void LAN_start() {
         return;
 }
 //#define EROUTER_PRIV_NET(X)      "172.31.255." #X /* X=25 is CM and X=40 is eRouter */
+#if !defined(_PLATFORM_IPQ_) && (!defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_))
 static void GWP_CreateTFTPServerForCMConsoleLogs()
 {
  	char cmd[BUF_SIZE]; 
@@ -1581,7 +1601,7 @@ static void GWP_CreateTFTPServerForCMConsoleLogs()
 		 	tftpserverStarted = TRUE;
  	}
 }
-
+#endif
 /**************************************************************************/
 /*! \fn int main(int argc, char *argv)
  **************************************************************************
@@ -1592,12 +1612,12 @@ static void GWP_CreateTFTPServerForCMConsoleLogs()
  **************************************************************************/
 int main(int argc, char *argv[])
 {
+    UNREFERENCED_PARAMETER(argc);
     int status = 0;
-    const int max_retries = 6;
-    int retry = 0;
-    appCallBack *obj     =    NULL;
+#if !defined(_PLATFORM_IPQ_)
     char sysevent_cmd[80];
-    int i;
+    appCallBack *obj     =    NULL;
+#endif
 #if defined(_INTEL_BUG_FIXES_)
     macaddr_t macAddr;
 #endif
@@ -1639,8 +1659,8 @@ int main(int argc, char *argv[])
     GWPROVETHWANLOG("GWP_ETHWAN initialization completed\n");
 	obj = ( appCallBack* ) malloc ( sizeof ( appCallBack ) );
 
-	obj->pGWP_act_EthWanLinkDown =  GWP_EthWanLinkDown_callback;
-	obj->pGWP_act_EthWanLinkUP =  GWP_EthWanLinkUp_callback;
+	obj->pGWP_act_EthWanLinkDown =  (void *)GWP_EthWanLinkDown_callback;
+	obj->pGWP_act_EthWanLinkUP =  (void *)GWP_EthWanLinkUp_callback;
 	GWPROVETHWANLOG("GWP_ETHWAN Creating RegisterEthWan Handler\n");
 #if !defined (_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
 	GWP_RegisterEthWan_Callback ( obj );
@@ -1711,7 +1731,7 @@ int main(int argc, char *argv[])
 	}
     }
 #else
-    for (i = 0; i < CB_REG_CNT_MAX; i++) {
+    for (int i = 0; i < CB_REG_CNT_MAX; i++) {
 	obj_l[i] = ( appCallBack* ) malloc ( sizeof ( appCallBack ) );
 	obj_l[i]->pGWP_act_EthWanLinkDown = NULL;
 	obj_l[i]->pGWP_act_EthWanLinkUP = NULL;
