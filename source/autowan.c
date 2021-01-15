@@ -751,8 +751,9 @@ CosaDmlEthWanSetEnable
         BOOL                       bEnable
     )
 {
-#if ((defined (_COSA_BCM_ARM_) && !defined(_CBR_PRODUCT_REQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)) || defined(INTEL_PUMA7))
+#if ((defined (_COSA_BCM_ARM_) && !defined(_CBR_PRODUCT_REQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)) || defined(INTEL_PUMA7) || defined(_CBR2_PRODUCT_REQ_))
         BOOL bGetStatus = FALSE;
+        char command[64] = {0};
         //CcspHalExtSw_getEthWanEnable(&bGetStatus);
     //if (bEnable != bGetStatus)
 #if !defined(AUTO_WAN_ALWAYS_RECONFIG_EROUTER)
@@ -760,11 +761,8 @@ CosaDmlEthWanSetEnable
        if(bEnable == FALSE)
        {
         system("ifconfig erouter0 down");
-#ifdef _XB7_PRODUCT_REQ_        
-        system("ip link set erouter0 name eth3");
-#else
-        system("ip link set erouter0 name eth0");
-#endif
+        snprintf(command,sizeof(command),"ip link set erouter0 name %s",ETHWAN_INF_NAME);
+        system(command);
         system("ip link set dummy-rf name erouter0");
         system("ifconfig eth0 up;ifconfig erouter0 up");
         

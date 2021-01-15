@@ -1060,6 +1060,8 @@ static void *GWPEthWan_sysevent_handler(void *data)
 #if defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)
 				       system("/bin/sh /etc/webgui.sh");
 				       // For other devices CcspWebUI.service launches the GUI processes
+#elif defined(_CBR2_PRODUCT_REQ_)
+                        startWebUIProcess();
 #endif
 				        webui_started = 1 ;
 
