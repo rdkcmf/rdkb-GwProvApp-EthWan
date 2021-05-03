@@ -187,7 +187,9 @@ static appCallBack *obj_l[CB_REG_CNT_MAX];
 #endif
 unsigned char ethwan_ifname[ 64 ];
 #if !defined(_PLATFORM_IPQ_) && (!defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_))
+#if !defined(FEATURE_RDKB_WAN_MANAGER)
 static unsigned char tftpserverStarted = FALSE;
+#endif
 #endif
 #if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
 void SME_CreateEventHandler(appCallBack *pAppCallBack);
@@ -294,6 +296,7 @@ int GWP_GetEthWanLinkStatus()
 	return -EINVAL;
 }
 #endif
+#if !defined(FEATURE_RDKB_WAN_MANAGER)
 static int GWP_EthWanLinkDown_callback()
 {
 	GWPROVETHWANLOG(" Entry %s \n", __FUNCTION__);
@@ -308,7 +311,9 @@ static int GWP_EthWanLinkDown_callback()
         system("sysevent set wan-stop");
 	return 0;
 }
+#endif
 #if !defined(_PLATFORM_IPQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
+#if !defined(FEATURE_RDKB_WAN_MANAGER)
 static int ethGetPHYRate
     (
         CCSP_HAL_ETHSW_PORT PortId
@@ -373,6 +378,8 @@ static int ethGetPHYRate
     return PHYRate;
 }
 #endif
+#endif
+#if !defined(FEATURE_RDKB_WAN_MANAGER)
 static int GWP_EthWanLinkUp_callback()
 {
 	GWPROVETHWANLOG(" Entry %s \n", __FUNCTION__);
@@ -443,7 +450,7 @@ static int GWP_EthWanLinkUp_callback()
 #endif
         return 0;
 }
-
+#endif
 #if defined(_PLATFORM_IPQ_)
 /**************************************************************************/
 /*! \fn void *GWP_linkstate_threadfunc(void *)
@@ -1219,10 +1226,12 @@ static int GWP_act_ProvEntry_callback()
 #else
 static int GWP_act_ProvEntry_callback()
 {
+#if !defined(FEATURE_RDKB_WAN_MANAGER)
     char command[100];
     char wanPhyName[20];
     char out_value[20];
     int outbufsz = sizeof(out_value);
+#endif
     GWPROVETHWANLOG(" Entry %s \n", __FUNCTION__);
     //system("sysevent set lan-start");
    
@@ -1246,7 +1255,7 @@ static int GWP_act_ProvEntry_callback()
     
     //Make another connection for gets/sets
     sysevent_fd_gs = sysevent_open("127.0.0.1", SE_SERVER_WELL_KNOWN_PORT, SE_VERSION, "gw_prov-gs", &sysevent_token_gs);
-
+#if !defined(FEATURE_RDKB_WAN_MANAGER)
    if (!syscfg_get(NULL, "wan_physical_ifname", out_value, outbufsz))
     {
        strcpy(wanPhyName, out_value);
@@ -1398,10 +1407,9 @@ static int GWP_act_ProvEntry_callback()
     printf("************************value of command = %s***********************\n", command);
     system(command);
 #endif
-
+#endif // ifndef FEATURE_RDKB_WAN_MANAGER
     system("sysevent set bridge_mode 0"); // to boot in router mode
     system("syscfg set eth_wan_enabled true"); // to handle Factory reset case
-    //GWP_EthWanLinkUp_callback();
     return 0;
 }
 #endif
@@ -1473,8 +1481,10 @@ static int GWP_ETHWAN_Init()
             status = -1;
         }
     }
+#if !defined(FEATURE_RDKB_WAN_MANAGER)
 #ifdef AUTOWAN_ENABLE
     AutoWAN_main();
+#endif
 #endif
     GWPROVETHWANLOG("Exiting from %s\n",__FUNCTION__);
     return status;
@@ -1586,8 +1596,10 @@ static void LAN_start() {
 
         return;
 }
+
 //#define EROUTER_PRIV_NET(X)      "172.31.255." #X /* X=25 is CM and X=40 is eRouter */
 #if !defined(_PLATFORM_IPQ_) && (!defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_))
+#if !defined(FEATURE_RDKB_WAN_MANAGER)
 static void GWP_CreateTFTPServerForCMConsoleLogs()
 {
  	char cmd[BUF_SIZE]; 
@@ -1602,6 +1614,7 @@ static void GWP_CreateTFTPServerForCMConsoleLogs()
  	}
 }
 #endif
+#endif
 /**************************************************************************/
 /*! \fn int main(int argc, char *argv)
  **************************************************************************
@@ -1615,8 +1628,10 @@ int main(int argc, char *argv[])
     UNREFERENCED_PARAMETER(argc);
     int status = 0;
 #if !defined(_PLATFORM_IPQ_)
-    char sysevent_cmd[80];
+#if !defined(FEATURE_RDKB_WAN_MANAGER)
     appCallBack *obj     =    NULL;
+#endif
+    char sysevent_cmd[80];
 #endif
 #if defined(_INTEL_BUG_FIXES_)
     macaddr_t macAddr;
@@ -1640,8 +1655,10 @@ int main(int argc, char *argv[])
 
 
  			GWP_act_ProvEntry_callback();
+#if !defined(FEATURE_RDKB_WAN_MANAGER)
 #if !defined(_PLATFORM_IPQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
 	        CcspHalEthSwInit();
+#endif
 #endif
             if (GWP_ETHWAN_Init() != 0)
             {
@@ -1656,6 +1673,7 @@ int main(int argc, char *argv[])
                 
                 GWPROVETHWANLOG("sysevent_tid thread terminated\n");
             }
+#if !defined(FEATURE_RDKB_WAN_MANAGER)
     GWPROVETHWANLOG("GWP_ETHWAN initialization completed\n");
 	obj = ( appCallBack* ) malloc ( sizeof ( appCallBack ) );
 
@@ -1671,6 +1689,7 @@ int main(int argc, char *argv[])
         GWP_CreateTFTPServerForCMConsoleLogs();
 
 #endif
+#endif //ifndef FEATURE_RDKB_WAN_MANAGER
 	GWPROVETHWANLOG("GWP_ETHWAN Creating RegisterEthWan Handler over\n");
 #if defined(_INTEL_BUG_FIXES_)
     getNetworkDeviceMacAddress(&macAddr);
