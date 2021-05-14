@@ -671,6 +671,11 @@ int TryAltWan(int *mode)
     } // *mode == WAN_MODE_DOCSIS
     else
     {
+#if defined(INTEL_PUMA7)
+       AUTO_WAN_LOG("%s - Bringing Up DOCSIS\n", __FUNCTION__);
+       system("cmctl up");
+#endif
+
        if(RETURN_ERR == docsis_IsEnergyDetected(&pRfSignalStatus)) {
           AUTO_WAN_LOG("AUTOWAN Failed to get RfSignalStatus \n");
        }
@@ -681,11 +686,6 @@ int TryAltWan(int *mode)
           AUTO_WAN_LOG("%s - Alternet WanMode - %s not present\n",__FUNCTION__,WanModeStr(WAN_MODE_DOCSIS));
           return 1;
        }
-
-#if defined(INTEL_PUMA7)
-       AUTO_WAN_LOG("%s - Bringing Up DOCSIS\n", __FUNCTION__);
-       system("cmctl up");
-#endif
 
        AUTO_WAN_LOG("AUTOWAN- %s Dosis present  - %d\n",__FUNCTION__,pRfSignalStatus);
        *mode = WAN_MODE_DOCSIS;
