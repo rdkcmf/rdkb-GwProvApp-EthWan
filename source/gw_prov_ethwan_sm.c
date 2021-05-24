@@ -216,6 +216,91 @@ GwProvSetLED
     return 0;
 }
 #endif
+
+
+
+#define BRMODE_ROUTER 0
+#define BRMODE_PRIMARY_BRIDGE   3
+#define BRMODE_GLOBAL_BRIDGE 2
+
+static int bridge_mode = BRMODE_ROUTER;
+static int active_mode = BRMODE_ROUTER;
+
+static void GWPEthWan_EnterBridgeMode(void);
+static void GWPEthWan_EnterRouterMode(void);
+
+static int bridgeModeInBootup = 0;
+
+static int GWPETHWAN_SysCfgSetInt(const char *name, int int_value)
+{
+   char value[20];
+
+   snprintf(value,sizeof(value),"%d", int_value);
+   GWPROVETHWANLOG(" %s : name = %s , value = %s \n", __FUNCTION__, name, value);
+   return syscfg_set(NULL, name, value);
+}
+
+void 
+validate_mode(int* bridge_mode)
+{
+    if((*bridge_mode != BRMODE_ROUTER) && (*bridge_mode != BRMODE_PRIMARY_BRIDGE) && (*bridge_mode != BRMODE_GLOBAL_BRIDGE))
+    {
+        GWPROVETHWANLOG(" SYSDB_CORRUPTION: bridge_mode = %d \n", *bridge_mode);
+        GWPROVETHWANLOG(" SYSDB_CORRUPTION: Switching to Default Router Mode \n");
+        *bridge_mode = BRMODE_ROUTER;
+
+        GWPETHWAN_SysCfgSetInt("bridge_mode", *bridge_mode);
+        if( syscfg_commit() != 0)
+                      GWPROVETHWANLOG(" %s : syscfg_commit not success \n", __FUNCTION__);
+                  
+    }
+    GWPROVETHWANLOG(" %s : bridge_mode = %d\n", __FUNCTION__, *bridge_mode);
+ }
+
+static int getSyseventBridgeMode(int bridgeMode) {
+        
+    //Erouter mode takes precedence over bridge mode. If erouter is disabled, 
+    //global bridge mode is returned. Otherwise partial bridge or router  mode
+    //is returned based on bridge mode. Partial bridge keeps the wan active
+    //for networks other than the primary.
+    // router = 0
+    // global bridge = 2
+    // partial (pseudo) = 3
+
+    /*
+     * Router/Bridge settings from utopia
+        typedef enum {
+            BRIDGE_MODE_OFF    = 0,
+            BRIDGE_MODE_DHCP   = 1,
+            BRIDGE_MODE_STATIC = 2,
+            BRIDGE_MODE_FULL_STATIC = 3
+           
+        } bridgeMode_t;
+     */ 
+     
+        switch( bridgeMode )
+        {
+            case 2:
+            {
+                return BRMODE_GLOBAL_BRIDGE;
+            }
+            break; /* 2 */
+        
+            case 3:
+            {
+                return BRMODE_PRIMARY_BRIDGE;
+            }
+            break; /* 3 */
+        
+            default: /* 0 */
+            {
+                return BRMODE_ROUTER;
+            }
+            break;
+        }
+
+        return BRMODE_ROUTER;
+}
 /**************************************************************************/
 /*! \fn int STATUS GWPEthWan_SyseventGetStr
  **************************************************************************
@@ -243,8 +328,7 @@ int GWPEthWan_SyseventGetStr(const char *name, unsigned char *out_value, int out
  *  \brief Get Syscfg Integer Value
  *  \return int/-1
  **************************************************************************/
-#if defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)
-static int GWPETHWAN_SysCfgGetInt(const char *name)
+static int GWPEthWan_SysCfgGetInt(const char *name)
 {
    char out_value[20];
    int outbufsz = sizeof(out_value);
@@ -260,7 +344,6 @@ static int GWPETHWAN_SysCfgGetInt(const char *name)
       return -1;
    }
 }
-#endif
 
 #if defined(_PLATFORM_IPQ_)
 /**************************************************************************/
@@ -392,8 +475,11 @@ static int GWP_EthWanLinkUp_callback()
 	GWPROVETHWANLOG("\n**************************\n");
 	GWPROVETHWANLOG("\nGWP_EthWanLinkUp_callback\n");
 	GWPROVETHWANLOG("\n**************************\n\n");
+
+#if 0    
 #if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
 	system("sysevent set bridge_mode 0"); // to boot in router mode
+#endif
 #endif
         char wanPhyName[20];
         char out_value[20];
@@ -734,6 +820,102 @@ static void check_lan_wan_ready()
 
 	return;
 }
+
+static void GWPEthWan_EnterBridgeMode(void)
+{
+    //GWP_UpdateEsafeAdminMode(DOCESAFE_ENABLE_DISABLE);
+    //DOCSIS_ESAFE_SetErouterOperMode(DOCESAFE_EROUTER_OPER_DISABLED);
+    /* Reset Switch, to remove all VLANs */ 
+    // GSWT_ResetSwitch();
+    //DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_NOT_INITIATED);
+    char MocaStatus[16]  = {0};
+    GWPROVETHWANLOG(" Entry %s \n", __FUNCTION__);
+    syscfg_get(NULL, "MoCA_current_status", MocaStatus, sizeof(MocaStatus));
+    GWPROVETHWANLOG(" MoCA_current_status = %s \n", MocaStatus);
+    if ((syscfg_set(NULL, "MoCA_previous_status", MocaStatus) != 0)) 
+    {
+        printf("syscfg_set failed\n");
+    }
+    else 
+    {
+        if (syscfg_commit() != 0) 
+        {
+            printf("syscfg_commit failed\n");
+        }
+    }
+    system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool false");
+    char command[256] = {0};
+    snprintf(command,sizeof(command),"sysevent set bridge_mode %d",active_mode) ;
+    system(command);
+    system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
+    
+    system("sysevent set forwarding-restart");
+}
+
+//Actually enter router mode
+static void GWPEthWan_EnterRouterMode(void)
+{
+         /* Coverity Issue Fix - CID:71381 : UnInitialised varible */
+    char MocaPreviousStatus[16] = {0};
+        int prev;
+    GWPROVETHWANLOG(" Entry %s \n", __FUNCTION__);
+
+//    bridge_mode = 0;
+    char command[256] = {0};
+    snprintf(command,sizeof(command),"sysevent set bridge_mode %d",BRMODE_ROUTER) ;
+    system(command);
+
+    syscfg_get(NULL, "MoCA_previous_status", MocaPreviousStatus, sizeof(MocaPreviousStatus));
+    prev = atoi(MocaPreviousStatus);
+    GWPROVETHWANLOG(" MocaPreviousStatus = %d \n", prev);
+    if(prev == 1)
+    {
+        system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool true");
+    }
+    else
+    {
+        system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool false");
+    }
+
+    system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool true");
+    
+    system("sysevent set forwarding-restart");
+}
+
+static void GWPEthWan_ProcessUtopiaRestart(void)
+{
+    // This function is called when "system-restart" event is received, This
+    // happens when WEBUI change bridge configuration. We do not restart the
+    // whole system, only routing/bridging functions only
+
+    int oldActiveMode = active_mode;
+
+    bridge_mode = GWPEthWan_SysCfgGetInt("bridge_mode");
+    //int loc_eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
+    
+    active_mode = getSyseventBridgeMode(bridge_mode);
+
+    printf("bridge_mode = %d, active_mode = %d\n", bridge_mode, active_mode);
+    GWPROVETHWANLOG(" bridge_mode = %d, active_mode = %d\n", bridge_mode, active_mode);
+
+    if (oldActiveMode == active_mode) return; // Exit if no transition
+    
+    webui_started = 0;
+    switch ( active_mode) 
+    {
+        case BRMODE_ROUTER:
+            GWPEthWan_EnterRouterMode();
+            break;
+
+        case BRMODE_GLOBAL_BRIDGE:
+        case BRMODE_PRIMARY_BRIDGE:
+            GWPEthWan_EnterBridgeMode();
+            break;
+        default:
+        break;
+    }
+
+}
 /**************************************************************************/
 /*! \fn void *GWPEthWan_sysevent_handler(void *data)
  **************************************************************************
@@ -757,6 +939,8 @@ static void *GWPEthWan_sysevent_handler(void *data)
     async_id_t ntp_time_sync_asyncid;
     async_id_t ping_status_asyncid;
     async_id_t conn_status_asyncid;
+    async_id_t system_restart_asyncid;
+    async_id_t bridge_status_asyncid;
     int l2net_inst_up = FALSE;
 
     /* RIPD/Zebra event ids */
@@ -802,6 +986,12 @@ static void *GWPEthWan_sysevent_handler(void *data)
 
     sysevent_setnotification(sysevent_fd, sysevent_token, "ping-status",  &ping_status_asyncid);
     sysevent_setnotification(sysevent_fd, sysevent_token, "conn-status",  &conn_status_asyncid);
+
+    sysevent_setnotification(sysevent_fd, sysevent_token, "system-restart",  &system_restart_asyncid);
+    sysevent_set_options(sysevent_fd, sysevent_token, "system-restart", TUPLE_FLAG_EVENT);
+
+    sysevent_setnotification(sysevent_fd, sysevent_token, "bridge-status",  &bridge_status_asyncid);
+    sysevent_set_options(sysevent_fd, sysevent_token, "bridge-status", TUPLE_FLAG_EVENT);
 
 #if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
     GwProvSetLED(YELLOW, BLINK, 1);
@@ -863,9 +1053,8 @@ static void *GWPEthWan_sysevent_handler(void *data)
             }
             else if (strcmp(name, "system-restart") == 0)
             {
-                printf("gw_prov_sm: got system restart\n");
-                sysevent_set(sysevent_fd_gs, sysevent_token_gs, "utopia_restart", "1", 0);
-            }
+                GWPROVETHWANLOG("gw_prov_sm: got system restart\n");
+                GWPEthWan_ProcessUtopiaRestart();            }
 
             else if ( (strcmp(name, "dhcp_server-restart")==0) || (strcmp(name, "dhcpv6s_server")==0) )
             {
@@ -1038,6 +1227,15 @@ static void *GWPEthWan_sysevent_handler(void *data)
                     //Need to Implement 
                 }
             }
+            else if (strcmp(name, "lan-status") == 0 || strcmp(name, "bridge-status") == 0 ) 
+            {
+                if ( ( strcmp(name, "bridge-status") ) == 0 && (!bridgeModeInBootup))
+                {
+                    GWPROVETHWANLOG("bridge-status = %s start webgui.sh \n", val );
+                    system("/bin/sh /etc/webgui.sh &");
+                }
+                bridgeModeInBootup = 0; // reset after lan/bridge status is received.
+            }
             else if (strcmp(name, "lan-restart") == 0)
             {
                 if (strcmp(val, "1")==0)
@@ -1200,6 +1398,11 @@ static int GWP_act_ProvEntry_callback()
 
     syscfg_init();
 
+    if (0 != GWPEthWan_SysCfgGetInt("bridge_mode"))
+    {
+        bridgeModeInBootup = 1;
+    }
+
     sleep(2);
     /*
      * Invoking board specific configuration script to set the board related
@@ -1259,8 +1462,8 @@ static int GWP_act_ProvEntry_callback()
 #else
 static int GWP_act_ProvEntry_callback()
 {
-#if !defined(FEATURE_RDKB_WAN_MANAGER)
     char command[100];
+#if !defined(FEATURE_RDKB_WAN_MANAGER)
     char wanPhyName[20];
     char out_value[20];
     int outbufsz = sizeof(out_value);
@@ -1441,7 +1644,23 @@ static int GWP_act_ProvEntry_callback()
     system(command);
 #endif
 #endif // ifndef FEATURE_RDKB_WAN_MANAGER
+
+    #if 0
     system("sysevent set bridge_mode 0"); // to boot in router mode
+    #endif
+    
+    int sysevent_bridge_mode = 0;
+    bridge_mode = GWPEthWan_SysCfgGetInt("bridge_mode");
+    validate_mode(&bridge_mode);
+    sysevent_bridge_mode = getSyseventBridgeMode(bridge_mode);
+    active_mode = sysevent_bridge_mode;
+
+    GWPROVETHWANLOG(" active_mode %d \n", active_mode);
+    memset(command,0,sizeof(command));
+    sprintf(command, "sysevent set bridge_mode %d", sysevent_bridge_mode);
+
+    system(command);
+
     system("syscfg set eth_wan_enabled true"); // to handle Factory reset case
     return 0;
 }
@@ -1605,7 +1824,7 @@ static void LAN_start() {
         GWPROVETHWANLOG("Utopia starting lan...\n");
 #if defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)
 	int bridge_mode = 0;
-        bridge_mode = GWPETHWAN_SysCfgGetInt("bridge_mode");
+        bridge_mode = GWPEthWan_SysCfgGetInt("bridge_mode");
         if(bridge_mode == 0)  // start the router mode set-up
         {
                 printf("Utopia starting lan...\n");
@@ -1623,7 +1842,20 @@ static void LAN_start() {
                 printf("starting with different mode ..\n");
         }
 #else
+    if (bridge_mode == 0) 
+    {
+        printf("Utopia starting lan...\n");
+        GWPROVETHWANLOG(" Setting lan-start event \n");           
         sysevent_set(sysevent_fd_gs, sysevent_token_gs, "lan-start", "", 0);
+        
+        
+    } else {
+        // TODO: fix this
+        printf("Utopia starting bridge...\n");
+        GWPROVETHWANLOG(" Setting bridge-start event \n");         
+        sysevent_set(sysevent_fd_gs, sysevent_token_gs, "bridge-start", "", 0);
+    }
+
 #endif
         sysevent_set(sysevent_fd_gs, sysevent_token_gs, "dhcp_server-resync", "", 0);
 
@@ -1758,7 +1990,8 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY);
     }
 
-	LAN_start();
+// Lan_start needs to be after pnm-status or bring-lan event
+	//LAN_start();
 
 #ifdef _COSA_BCM_ARM_ 
         {
