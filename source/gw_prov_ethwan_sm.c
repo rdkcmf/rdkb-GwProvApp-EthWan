@@ -1545,11 +1545,7 @@ static int GWP_act_ProvEntry_callback()
         #endif
             
         macaddr_t macAddr;
-#if defined(INTEL_PUMA7)
-        getNetworkDeviceMacAddress(&macAddr);
-#else
         getWanMacAddress(&macAddr);
-#endif
     int i =0;
     printf("eRouter macAddr ");
     for (i=0;i<6;i++)
