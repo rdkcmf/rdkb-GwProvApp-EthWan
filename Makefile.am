@@ -17,3 +17,7 @@
 # limitations under the License.
 ##########################################################################
 SUBDIRS = source
+
+if WITH_GTEST_SUPPORT
+SUBDIRS += source/test
+endif
