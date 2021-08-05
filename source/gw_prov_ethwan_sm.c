@@ -749,6 +749,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
     async_id_t homesecurity_lan_l3net_asyncid;
     async_id_t ntp_time_sync_asyncid;
     async_id_t ping_status_asyncid;
+    async_id_t conn_status_asyncid;
     int l2net_inst_up = FALSE;
 
     /* RIPD/Zebra event ids */
@@ -793,6 +794,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
     sysevent_setnotification(sysevent_fd, sysevent_token, "ntp_time_sync",  &ntp_time_sync_asyncid);
 
     sysevent_setnotification(sysevent_fd, sysevent_token, "ping-status",  &ping_status_asyncid);
+    sysevent_setnotification(sysevent_fd, sysevent_token, "conn-status",  &conn_status_asyncid);
 
 #if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
     GwProvSetLED(YELLOW, BLINK, 1);
@@ -811,6 +813,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
         int iresCode = 0 , iRet = 0;
         char responseCode[10]={0}, cp_enable[10]={0}, redirect_flag[10]={0};
         int Led_Color = 0 , Led_State = 0 , Led_Interval = 0 ;
+        int PING_STATUS = -1 , CONN_STATUS = -1 ;
         err = sysevent_getnotification(sysevent_fd, sysevent_token, name, &namelen,  val, &vallen, &getnotification_asyncid);
 
         if (err)
@@ -871,25 +874,48 @@ static void *GWPEthWan_sysevent_handler(void *data)
 		    GWPROVETHWANLOG("cmd %s\n", cmd);
             }
 
-  	   else if (strcmp(name, "ping-status") == 0)
+  	   else if ( (strcmp(name, "ping-status") == 0) || (strcmp(name, "conn-status") == 0) )
             {
   
-                 GWPROVETHWANLOG("Received ping-status event notification, ping-status value is %s\n", val);
+                GWPROVETHWANLOG("Received %s event notification, %s value is %s\n",name,name,val);
 
-                if (strcmp(val, "missed")==0)
+                if ( (strcmp(name, "ping-status") == 0) )
                 {
+                    PING_STATUS = 1 ;
 
-			#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
-                        GWPROVETHWANLOG("Ping missed, Setting LED to RED\n");
+                }
+                else
+                {
+                    CONN_STATUS = 1 ;
+                }
+
+                if  ( ( PING_STATUS == 1 && (strcmp(val, "missed")==0) ) || ( CONN_STATUS == 1 && (strcmp(val, "failed")==0) ) )
+                {
+                        #if defined (_CBR2_PRODUCT_REQ_)
+                         if ( PING_STATUS ==1 ) {
+                            GWPROVETHWANLOG("Ping missed, Setting LED to WHITE FAST BLINK\n");
+			 }
+                         else
+			 {
+                            GWPROVETHWANLOG("Connection failed, Setting LED to WHITE FAST BLINK\n");
+			 }
+			 GwProvSetLED(WHITE, BLINK, 5) ;
+			 #elif !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
+
+                         if ( PING_STATUS ==1 )
+			 {
+                            GWPROVETHWANLOG("Ping missed, Setting LED to RED\n");
+			 }else {
+                            GWPROVETHWANLOG("Connection failed, Setting LED to RED\n");
+			}
 			GwProvSetLED(RED, SOLID, 0) ;
 			#endif
 		
 			// Set LED state to RED
                 }
-                else if (strcmp(val, "received")==0)
+                else if  ( ( PING_STATUS == 1 && (strcmp(val, "received")==0) ) || ( CONN_STATUS == 1 && (strcmp(val, "success")==0) ) )
                 {
 		    // Set LED state based on whether device is in CP or not
-
 	           Led_Color = WHITE ;
 		   Led_State = SOLID ;
 		   Led_Interval = 0 ;
@@ -935,9 +961,9 @@ static void *GWPEthWan_sysevent_handler(void *data)
                     #if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
                       GwProvSetLED(Led_Color, Led_State, Led_Interval) ;
                     #endif
-
-
                 }
+                PING_STATUS = -1;
+                CONN_STATUS = -1;
             }
 #if defined(_PLATFORM_IPQ_)
             else if ((strcmp(name, "lan-status") == 0 ||
