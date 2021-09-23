@@ -526,6 +526,8 @@ static int GWP_EthWanLinkUp_callback()
 #endif
 	    system("sysevent set ethwan-initialized 1");
 		system("syscfg set eth_wan_enabled true"); // to handle Factory reset case
+		system("syscfg set last_wan_mode 1"); // to handle Factory reset case
+		system("syscfg set curr_wan_mode 1"); // to handle Factory reset case
 		system("syscfg set ntp_enabled 1"); // Enable NTP in case of ETHWAN
 		system("syscfg commit");
 #if !defined(_PLATFORM_IPQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
@@ -1720,7 +1722,15 @@ static int GWP_ETHWAN_Init()
     else 
     {
         GWPROVETHWANLOG("GWP_ETHWAN_Register_sysevent Successful\n");
-    
+#if defined(FEATURE_RDKB_WAN_MANAGER)
+        system("sysevent set ethwan-initialized 1");
+        system("syscfg set eth_wan_enabled true"); // to handle Factory reset case
+        system("syscfg set ntp_enabled 1"); // Enable NTP in case of ETHWAN
+        system("syscfg set last_wan_mode 1"); // to handle Factory reset case
+        system("syscfg set curr_wan_mode 1"); // to handle Factory reset case
+        system("syscfg commit");
+#endif
+ 
         thread_status = pthread_create(&sysevent_tid, NULL, GWPEthWan_sysevent_handler, NULL);
         if (thread_status == 0)
         {
