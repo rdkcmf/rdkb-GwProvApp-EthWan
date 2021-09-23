@@ -207,7 +207,7 @@ GwProvSetLED
         ledMgmt.LedColor = color;
         ledMgmt.State    = state;
         ledMgmt.Interval = interval;
-#if defined(_XB6_PRODUCT_REQ_)
+#if defined(_XB6_PRODUCT_REQ_) || defined(_CBR2_PRODUCT_REQ_)
         if(RETURN_ERR == platform_hal_setLed(&ledMgmt)) {
                 GWPROVETHWANLOG("platform_hal_setLed failed\n");
                 return 1;
@@ -306,7 +306,12 @@ static int GWP_EthWanLinkDown_callback()
 	GWPROVETHWANLOG("\n**************************\n\n");
 	GWPROVETHWANLOG(" Stopping wan service\n");
 #if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
+        #if defined (_CBR2_PRODUCT_REQ_)
+        GWPROVETHWANLOG("Stopping wan service, Setting LED to WHITE FAST BLINK\n");
+	GwProvSetLED(WHITE, BLINK, 5) ;
+        #else
 	GwProvSetLED(YELLOW, BLINK, 1);
+        #endif
 #endif
         system("sysevent set wan-stop");
 	return 0;
@@ -403,8 +408,10 @@ static int GWP_EthWanLinkUp_callback()
 //Cox: Cp is disabled and need to show solid white
          if(!strcmp(captivePortalEnable,"false"))
          {
+                #if !defined (_CBR2_PRODUCT_REQ_)
 		GWPROVETHWANLOG("%s: CP disabled case and set led to solid white \n", __FUNCTION__);
 		GwProvSetLED(WHITE, SOLID, 1);
+                #endif 
          }
         }
 #endif
