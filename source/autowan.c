@@ -353,6 +353,7 @@ void ManageWanModes(int mode)
         {
            SetLastKnownWanMode(try_mode);
            SetCurrentWanMode(try_mode);
+           system("touch /tmp/autowan_iface_finalized");
            if(try_mode == mode)
            {
               AUTO_WAN_LOG("%s - WanMode %s is Locked, Set Current operational mode, reboot is not required, CheckWanConnection=%d\n",__FUNCTION__,WanModeStr(mode),ret);
@@ -376,6 +377,7 @@ void ManageWanModes(int mode)
         {
            SetLastKnownWanMode(mode);
            SetCurrentWanMode(mode);
+           system("touch /tmp/autowan_iface_finalized");
            AUTO_WAN_LOG("%s - WanMode %s is Locked, Set Current operational mode, reboot is not required, CheckWanConnection=%d\n",__FUNCTION__,WanModeStr(mode),ret);
 #if defined(INTEL_PUMA7)
            if(try_mode == WAN_MODE_ETH)
