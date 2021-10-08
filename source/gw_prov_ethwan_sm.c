@@ -1229,6 +1229,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
                     //Need to Implement 
                 }
             }
+#if !defined(_CBR2_PRODUCT_REQ_)
             else if (strcmp(name, "lan-status") == 0 || strcmp(name, "bridge-status") == 0 ) 
             {
                 if ( ( strcmp(name, "bridge-status") ) == 0 && (!bridgeModeInBootup))
@@ -1238,6 +1239,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
                 }
                 bridgeModeInBootup = 0; // reset after lan/bridge status is received.
             }
+#endif
             else if (strcmp(name, "lan-restart") == 0)
             {
                 if (strcmp(val, "1")==0)
@@ -1308,7 +1310,11 @@ static void *GWPEthWan_sysevent_handler(void *data)
                     sysevent_set(sysevent_fd_gs, sysevent_token_gs, "firewall-restart", "",0);
             }
 #if !defined(_PLATFORM_IPQ_) 
+#if defined(_CBR2_PRODUCT_REQ_)
+            else if (strcmp(name, "lan-status") == 0 || strcmp(name, "bridge-status") == 0 ) 
+#else
             else if (strcmp(name, "lan-status") == 0 )
+#endif
             {
 		 GWPROVETHWANLOG(" lan-status received \n");
 				if (strcmp(val, "started") == 0) {
@@ -1317,6 +1323,8 @@ static void *GWPEthWan_sysevent_handler(void *data)
 				       system("/bin/sh /etc/webgui.sh");
 				       // For other devices CcspWebUI.service launches the GUI processes
 #elif defined(_CBR2_PRODUCT_REQ_)
+                        bridgeModeInBootup = 0; // reset after lan/bridge status is received.
+
                         startWebUIProcess();
 #endif
 				        webui_started = 1 ;
