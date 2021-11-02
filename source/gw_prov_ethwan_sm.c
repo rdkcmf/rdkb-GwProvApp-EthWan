@@ -1064,7 +1064,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
             }
             else if (strcmp(name, "firewall-restart")==0)
             {
-		char cmd[100];
+		char cmd[100+5];
 		    GWPROVETHWANLOG("received notification event %s\n", name);
                     memset(cmd,0,sizeof(cmd));
 		    sprintf(cmd, "ip6tables -I OUTPUT -o %s -p icmpv6 -j DROP", ethwan_ifname);
@@ -1209,7 +1209,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
                               check_lan_wan_ready();
                         }
                     }
-                    char command[100];
+                    char command[100+5];
                     memset(command,0,sizeof(command));
                     sprintf(command, "sysctl -w net.ipv6.conf.%s.disable_ipv6=1", ethwan_ifname); // Fix: RDKB-21410, disabling IPv6 for ethwan port
                     printf("****************value of command = %s**********************\n", command);
@@ -1464,7 +1464,7 @@ static int GWP_act_ProvEntry_callback()
 #else
 static int GWP_act_ProvEntry_callback()
 {
-    char command[100];
+    char command[100+30];
 #if !defined(FEATURE_RDKB_WAN_MANAGER)
     char wanPhyName[20];
     char out_value[20];

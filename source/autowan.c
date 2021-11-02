@@ -436,20 +436,21 @@ int CheckWanStatus(int mode)
    char command[256] = {0};
    char wan_connection_ifname[ETHWAN_INTERFACE_NAME_MAX_LENGTH] = {0};
    FILE *fp;
+   char out_value[20] = {0};
 
     sysevent_get(sysevent_fd_gs, sysevent_token_gs, "current_wan_state", buff, sizeof(buff));
 
     if (!strcmp(buff, "up")) {
         if(mode == WAN_MODE_ETH)
         {
-           memset(buff,0,sizeof(buff));
-           syscfg_get(NULL, "wan_physical_ifname", buff, sizeof(buff));
+           memset(out_value,0,sizeof(out_value));
+           syscfg_get(NULL, "wan_physical_ifname", out_value, sizeof(out_value));
 
-           AUTO_WAN_LOG("%s - syscfg returned wan_physical_ifname= %s\n",__FUNCTION__,buff);
+           AUTO_WAN_LOG("%s - syscfg returned wan_physical_ifname= %s\n",__FUNCTION__,out_value);
 
-           if(0 != strnlen(buff,sizeof(buff)))
+           if(0 != strnlen(out_value,sizeof(out_value)))
            {
-              snprintf(wan_connection_ifname, sizeof(wan_connection_ifname), "%s", buff);
+              snprintf(wan_connection_ifname, sizeof(wan_connection_ifname), "%s", out_value);
            }
            else
            {
@@ -606,7 +607,7 @@ void TryAltWan(int *mode)
 {
     char pRfSignalStatus = 0;
 #if !defined(AUTO_WAN_ALWAYS_RECONFIG_EROUTER) || defined(_COSA_BCM_ARM_)
-    char command[64] = {0};
+    char command[64+5] = {0};
 #endif
 #if !defined(AUTO_WAN_ALWAYS_RECONFIG_EROUTER)
     char wanPhyName[20] = {0};
@@ -745,7 +746,7 @@ void TryAltWan(int *mode)
 
 void RevertTriedConfig(int mode)
 {
-    char command[64];
+    char command[64+5];
     memset(command,0,sizeof(command));
     char ethwan_ifname[ETHWAN_INTERFACE_NAME_MAX_LENGTH] = {0};
 
