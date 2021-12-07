@@ -675,7 +675,7 @@ static void *GWPEthWan_linkstate_threadfunc(void *data)
 static void *GWPEthWan_linkstate_threadfunc(void *data)
 {
         char *temp;
-    char command[50] = {0};
+    char command[100] = {0};
     char wanPhyName[20] = {0};
     char out_value[20] = {0};
     int outbufsz = sizeof(out_value);
