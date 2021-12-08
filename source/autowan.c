@@ -606,9 +606,9 @@ return 1;
 void TryAltWan(int *mode)
 {
     char pRfSignalStatus = 0;
-#if !defined(AUTO_WAN_ALWAYS_RECONFIG_EROUTER) || defined(_COSA_BCM_ARM_)
+    char ethwan_ifname[ETHWAN_INTERFACE_NAME_MAX_LENGTH] = {0};
     char command[64+5] = {0};
-#endif
+
 #if !defined(AUTO_WAN_ALWAYS_RECONFIG_EROUTER)
     char wanPhyName[20] = {0};
     char out_value[20] = {0};
@@ -627,24 +627,39 @@ void TryAltWan(int *mode)
      }
 #endif
 
+     if ( (0 != GWP_GetEthWanInterfaceName(ethwan_ifname, sizeof(ethwan_ifname)))
+          || (0 == strnlen(ethwan_ifname,sizeof(ethwan_ifname)))
+          || (0 == strncmp(ethwan_ifname,"disable",sizeof(ethwan_ifname)))
+        )
+     {
+         /* Fallback case needs to set it default */
+         snprintf(ethwan_ifname ,sizeof(ethwan_ifname), "%s", ETHWAN_INF_NAME);
+     }
+
+     /* During WAN Disruptions XBs were not coming back online without another reboot. Toggle interface between modes */
+     AUTO_WAN_LOG("%s - Toggling ethwan_ifname= %s DOWN\n",__FUNCTION__,ethwan_ifname);
+
+     memset(command,0,sizeof(command));
+     snprintf(command,sizeof(command),"ip link set dev %s down",ethwan_ifname);
+     system(command);
+
+     sleep(5);
+     AUTO_WAN_LOG("%s - Toggling ethwan_ifname= %s UP\n",__FUNCTION__,ethwan_ifname);
+
+     memset(command,0,sizeof(command));
+     snprintf(command,sizeof(command),"ip link set dev %s up",ethwan_ifname);
+     system(command);
+
     if(*mode == WAN_MODE_DOCSIS)
     {
         *mode = WAN_MODE_ETH;
 
         CosaDmlEthWanSetEnable(TRUE);
+
 #if !defined(AUTO_WAN_ALWAYS_RECONFIG_EROUTER)
-        char ethwan_ifname[ETHWAN_INTERFACE_NAME_MAX_LENGTH] = {0};
 
-        if ( (0 != GWP_GetEthWanInterfaceName(ethwan_ifname, sizeof(ethwan_ifname)))
-             || (0 == strnlen(ethwan_ifname,sizeof(ethwan_ifname)))
-             || (0 == strncmp(ethwan_ifname,"disable",sizeof(ethwan_ifname)))
-           )
-        {
-            /* Fallback case needs to set it default */
-            snprintf(ethwan_ifname ,sizeof(ethwan_ifname), "%s", ETHWAN_INF_NAME);
-        }
-
-        AUTO_WAN_LOG("%s - mode= %s ethwan_ifname= %s, wanPhyName= %s\n",__FUNCTION__,WanModeStr(WAN_MODE_ETH),ethwan_ifname,wanPhyName);        
+        AUTO_WAN_LOG("%s - mode= %s ethwan_ifname= %s, wanPhyName= %s\n",__FUNCTION__,WanModeStr(WAN_MODE_ETH),ethwan_ifname,wanPhyName);
+  
         #if defined (_BRIDGE_UTILS_BIN_)
 
             if ( syscfg_set( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
@@ -659,9 +674,8 @@ void TryAltWan(int *mode)
                 }
 
             }
-        #endif
-    
-        #if defined (_BRIDGE_UTILS_BIN_)
+
+          memset(command,0,sizeof(command));
 
           if (g_OvsEnable)
           {
