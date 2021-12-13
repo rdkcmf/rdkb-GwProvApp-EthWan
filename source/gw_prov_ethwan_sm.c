@@ -1232,11 +1232,14 @@ static void *GWPEthWan_sysevent_handler(void *data)
 #if !defined(_CBR2_PRODUCT_REQ_)
             else if (strcmp(name, "lan-status") == 0 || strcmp(name, "bridge-status") == 0 ) 
             {
+		if(strcmp(val, "started") == 0)
+		{
                 if ( ( strcmp(name, "bridge-status") ) == 0 && (!bridgeModeInBootup))
-                {
+                {		    
                     GWPROVETHWANLOG("bridge-status = %s start webgui.sh \n", val );
                     system("/bin/sh /etc/webgui.sh &");
                 }
+		}
                 bridgeModeInBootup = 0; // reset after lan/bridge status is received.
             }
 #endif
