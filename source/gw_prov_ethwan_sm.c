@@ -1408,8 +1408,6 @@ static int GWP_act_ProvEntry_callback()
 
     system("/etc/utopia/utopia_init.sh");
 
-    syscfg_init();
-
     if (0 != GWPEthWan_SysCfgGetInt("bridge_mode"))
     {
         bridgeModeInBootup = 1;
@@ -1490,7 +1488,6 @@ static int GWP_act_ProvEntry_callback()
     GWPROVETHWANLOG(" Calling /etc/utopia/utopia_init.sh \n"); 
     system("/etc/utopia/utopia_init.sh");
 
-    syscfg_init();
     sleep(2);
     sysevent_fd = sysevent_open("127.0.0.1", SE_SERVER_WELL_KNOWN_PORT, SE_VERSION, "gw_prov", &sysevent_token);
 
