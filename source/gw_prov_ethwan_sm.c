@@ -484,15 +484,16 @@ static int GWP_EthWanLinkUp_callback()
         char wanPhyName[20];
         char out_value[20];
         int outbufsz = sizeof(out_value);
-        char redirFlag[10]={0};
-        char captivePortalEnable[10]={0};
+//        char redirFlag[10]={0};
+//        char captivePortalEnable[10]={0};
 
-#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
+//#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
+#if 0    
         if (!syscfg_get(NULL, "redirection_flag", redirFlag, sizeof(redirFlag)) && !syscfg_get(NULL, "CaptivePortal_Enable", captivePortalEnable, sizeof(captivePortalEnable))){
           if (!strcmp(redirFlag,"true") && !strcmp(captivePortalEnable,"true"))
 	    GwProvSetLED(WHITE, BLINK, 1);
 //Cox: Cp is disabled and need to show solid white
-         if(!strcmp(captivePortalEnable,"false"))
+         if(!strcmp(redirFlag,"true") && !strcmp(captivePortalEnable,"false"))
          {
                 #if !defined (_CBR2_PRODUCT_REQ_)
 		GWPROVETHWANLOG("%s: CP disabled case and set led to solid white \n", __FUNCTION__);
