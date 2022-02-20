@@ -1557,6 +1557,7 @@ static int GWP_act_ProvEntry_callback()
     memset(command,0,sizeof(command));
     sprintf(command, "ifconfig %s down", ethwan_ifname);
     system(command);
+   
 
 #if !defined(INTEL_PUMA7)
     memset(command,0,sizeof(command));
@@ -1643,8 +1644,8 @@ static int GWP_act_ProvEntry_callback()
     sprintf(command, "ifconfig %s up", wanPhyName);
     printf("************************value of command = %s************************\n", command);
     system(command);
-                                
-#ifdef INTEL_PUMA7
+              
+#if defined(INTEL_PUMA7) || defined(_CBR2_PRODUCT_REQ_)
     memset(command,0,sizeof(command));
     sprintf(command, "ifconfig %s up",ethwan_ifname);
     printf("************************value of command = %s***********************\n", command);
