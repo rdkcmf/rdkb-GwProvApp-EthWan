@@ -228,15 +228,6 @@ static void GWPEthWan_EnterRouterMode(void);
 
 static int bridgeModeInBootup = 0;
 
-static int GWPETHWAN_SysCfgSetInt(const char *name, int int_value)
-{
-   char value[20];
-
-   snprintf(value,sizeof(value),"%d", int_value);
-   GWPROVETHWANLOG(" %s : name = %s , value = %s \n", __FUNCTION__, name, value);
-   return syscfg_set(NULL, name, value);
-}
-
 void 
 validate_mode(int* bridge_mode)
 {
@@ -246,10 +237,9 @@ validate_mode(int* bridge_mode)
         GWPROVETHWANLOG(" SYSDB_CORRUPTION: Switching to Default Router Mode \n");
         *bridge_mode = BRMODE_ROUTER;
 
-        GWPETHWAN_SysCfgSetInt("bridge_mode", *bridge_mode);
-        if( syscfg_commit() != 0)
-                      GWPROVETHWANLOG(" %s : syscfg_commit not success \n", __FUNCTION__);
-                  
+        if (syscfg_set_u_commit(NULL, "bridge_mode", BRMODE_ROUTER) != 0) {
+            GWPROVETHWANLOG(" %s: syscfg_set brideg_mode failed\n", __FUNCTION__);
+        }
     }
     GWPROVETHWANLOG(" %s : bridge_mode = %d\n", __FUNCTION__, *bridge_mode);
  }
@@ -831,22 +821,15 @@ static void GWPEthWan_EnterBridgeMode(void)
     GWPROVETHWANLOG(" Entry %s \n", __FUNCTION__);
     syscfg_get(NULL, "MoCA_current_status", MocaStatus, sizeof(MocaStatus));
     GWPROVETHWANLOG(" MoCA_current_status = %s \n", MocaStatus);
-    if ((syscfg_set(NULL, "MoCA_previous_status", MocaStatus) != 0)) 
+    if ((syscfg_set_commit(NULL, "MoCA_previous_status", MocaStatus) != 0)) 
     {
         printf("syscfg_set failed\n");
     }
-    else 
-    {
-        if (syscfg_commit() != 0) 
-        {
-            printf("syscfg_commit failed\n");
-        }
-    }
-    system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool false");
+    system("dmcli eRT setv Device.MoCA.Interface.1.Enable bool false");
     char command[256];
     snprintf(command,sizeof(command),"sysevent set bridge_mode %d",active_mode) ;
     system(command);
-    system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
+    system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
     
     system("sysevent set forwarding-restart");
 }
@@ -869,14 +852,14 @@ static void GWPEthWan_EnterRouterMode(void)
     GWPROVETHWANLOG(" MocaPreviousStatus = %d \n", prev);
     if(prev == 1)
     {
-        system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool true");
+        system("dmcli eRT setv Device.MoCA.Interface.1.Enable bool true");
     }
     else
     {
-        system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool false");
+        system("dmcli eRT setv Device.MoCA.Interface.1.Enable bool false");
     }
 
-    system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool true");
+    system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool true");
     
     system("sysevent set forwarding-restart");
 }
@@ -1521,17 +1504,9 @@ static int GWP_act_ProvEntry_callback()
 
         #if defined (_BRIDGE_UTILS_BIN_)
 
-            if ( syscfg_set( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
+            if ( syscfg_set_commit( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
             {
                 GWPROVETHWANLOG( "syscfg_set failed for eth_wan_iface_name\n" );
-            }
-            else
-            {
-                if ( syscfg_commit() != 0 )
-                {
-                    GWPROVETHWANLOG( "syscfg_commit failed for eth_wan_iface_name\n" );
-                }
-
             }
         #endif
             
@@ -1964,22 +1939,19 @@ int main(int argc, char *argv[])
     }
 
     /* Update LAN bridge mac address offset */
-    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_BRIDGE_OFFSET);
-    if ((syscfg_set(NULL, BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
+    if ((syscfg_set_u(NULL, BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY, BASE_MAC_BRIDGE_OFFSET) != 0))
     {
         fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY);
     }
 
     /* Update wired LAN interface mac address offset */
-    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_LAN_OFFSET);
-    if ((syscfg_set(NULL, BASE_MAC_LAN_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
+    if ((syscfg_set_u(NULL, BASE_MAC_LAN_OFFSET_SYSCFG_KEY, BASE_MAC_LAN_OFFSET) != 0))
     {
         fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_LAN_OFFSET_SYSCFG_KEY);
     }
 
     /* Update WiFi interface mac address offset */
-    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_WLAN_OFFSET);
-    if ((syscfg_set(NULL, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
+    if ((syscfg_set_u(NULL, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY, BASE_MAC_WLAN_OFFSET) != 0))
     {
         fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY);
     }

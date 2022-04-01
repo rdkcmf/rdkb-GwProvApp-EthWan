@@ -190,23 +190,12 @@ int GetCurrentWanMode()
 
 void SetCurrentWanMode(int mode)
 {
-        char buf[8];
-        memset(buf, 0, sizeof(buf));
-        g_CurrentWanMode = mode;
-        AUTO_WAN_LOG("%s Set Current WanMode = %s\n",__FUNCTION__, WanModeStr(g_CurrentWanMode)); 
-        snprintf(buf, sizeof(buf), "%d", g_CurrentWanMode);
-        if (syscfg_set(NULL, "curr_wan_mode", buf) != 0)
-        {
-            AUTO_WAN_LOG("syscfg_set failed for curr_wan_mode\n");
-        }
-        else
-        {
-            if (syscfg_commit() != 0)
-            {
-                AUTO_WAN_LOG("syscfg_commit failed for curr_wan_mode\n");
-            }
-
-        }
+    g_CurrentWanMode = mode;
+    AUTO_WAN_LOG("%s Set Current WanMode = %s\n",__FUNCTION__, WanModeStr(g_CurrentWanMode)); 
+    if (syscfg_set_u_commit(NULL, "curr_wan_mode", (unsigned long) mode) != 0)
+    {
+    	AUTO_WAN_LOG("syscfg_set failed for curr_wan_mode\n");
+    }
 }
 
 int GetSelectedWanMode()
@@ -216,23 +205,12 @@ int GetSelectedWanMode()
 
 void SelectedWanMode(int mode)
 {
-char buf[8];
     g_SelectedWanMode = mode;
     AUTO_WAN_LOG("%s Set  SelectedWanMode = %s\n",__FUNCTION__, WanModeStr(g_SelectedWanMode)); 
-        memset(buf, 0, sizeof(buf));
-        snprintf(buf, sizeof(buf), "%d", mode);
-        if (syscfg_set(NULL, "selected_wan_mode", buf) != 0)
-        {
-            AUTO_WAN_LOG("syscfg_set failed for curr_wan_mode\n");
-        }
-        else
-        {
-            if (syscfg_commit() != 0)
-            {
-                AUTO_WAN_LOG("syscfg_commit failed for curr_wan_mode\n");
-            }
-
-        }
+    if (syscfg_set_u_commit(NULL, "selected_wan_mode", (unsigned long) mode) != 0)
+    {
+        AUTO_WAN_LOG("syscfg_set failed for curr_wan_mode\n");
+    }
 }
 
 int GetLastKnownWanMode()
@@ -242,23 +220,12 @@ int GetLastKnownWanMode()
 
 void SetLastKnownWanMode(int mode)
 {
-    char buf[8];
     g_LastKnowWanMode = mode;
     AUTO_WAN_LOG("%s Set Last Known WanMode = %s\n",__FUNCTION__, WanModeStr(g_LastKnowWanMode));
-    memset(buf, 0, sizeof(buf));
-    snprintf(buf, sizeof(buf), "%d", mode);
-        if (syscfg_set(NULL, "last_wan_mode", buf) != 0)
-        {
-            AUTO_WAN_LOG("syscfg_set failed for last_wan_mode\n");
-        }
-        else
-        {
-            if (syscfg_commit() != 0)
-            {
-                AUTO_WAN_LOG("syscfg_commit failed for last_wan_mode\n");
-            }
-
-        } 
+    if (syscfg_set_u_commit(NULL, "last_wan_mode", (unsigned long) mode) != 0)
+    {
+        AUTO_WAN_LOG("syscfg_set failed for last_wan_mode\n");
+    }
 }
 
 void* WanMngrThread(void* arg)
@@ -662,17 +629,9 @@ void TryAltWan(int *mode)
   
         #if defined (_BRIDGE_UTILS_BIN_)
 
-            if ( syscfg_set( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
+            if ( syscfg_set_commit( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
             {
                 AUTO_WAN_LOG( "syscfg_set failed for eth_wan_iface_name\n" );
-            }
-            else
-            {
-                if ( syscfg_commit() != 0 )
-                {
-                    AUTO_WAN_LOG( "syscfg_commit failed for eth_wan_iface_name\n" );
-                }
-
             }
 
           if (g_OvsEnable)
@@ -768,17 +727,9 @@ void RevertTriedConfig(int mode)
         AUTO_WAN_LOG("%s - ethwan_ifname= %s\n",__FUNCTION__,ethwan_ifname);
         #if defined (_BRIDGE_UTILS_BIN_)
 
-            if ( syscfg_set( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
+            if ( syscfg_set_commit( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
             {
                 AUTO_WAN_LOG( "syscfg_set failed for eth_wan_iface_name\n" );
-            }
-            else
-            {
-                if ( syscfg_commit() != 0 )
-                {
-                    AUTO_WAN_LOG( "syscfg_commit failed for eth_wan_iface_name\n" );
-                }
-
             }
         #endif
         snprintf(command,sizeof(command),"ifconfig %s down",ethwan_ifname);
@@ -866,10 +817,6 @@ CosaDmlEthWanSetEnable
 
     if ( RETURN_OK == CcspHalExtSw_setEthWanEnable( bEnable ) ) 
     {
-        //pthread_t tid;        
-        char buf[ 8 ];
-        memset( buf, 0, sizeof( buf ) );
-        snprintf( buf, sizeof( buf ), "%s", bEnable ? "true" : "false" );
         if(bEnable)
         {
             system("touch /nvram/ETHWAN_ENABLE");
@@ -879,19 +826,10 @@ CosaDmlEthWanSetEnable
             system("rm /nvram/ETHWAN_ENABLE");
         }
 
-        if ( syscfg_set( NULL, "eth_wan_enabled", buf ) != 0 )
+        if ( syscfg_set_commit( NULL, "eth_wan_enabled", bEnable ? "true" : "false" ) != 0 )
         {
             AUTO_WAN_LOG( "syscfg_set failed for eth_wan_enabled\n" );
             return RETURN_ERR;
-        }
-        else
-        {
-            if ( syscfg_commit() != 0 )
-            {
-                AUTO_WAN_LOG( "syscfg_commit failed for eth_wan_enabled\n" );
-                return RETURN_ERR;
-            }
-
         }
     }
     return RETURN_OK;
@@ -902,35 +840,17 @@ CosaDmlEthWanSetEnable
 
 void AutoWan_BkupAndReboot()
 {
+    //OnboardLog("Device reboot due to reason WAN_Mode_Change\n");
 
-/* Set the reboot reason */
-                        char buf[8];
-                        snprintf(buf,sizeof(buf),"%d",1);
-            //OnboardLog("Device reboot due to reason WAN_Mode_Change\n");
-                        if (syscfg_set(NULL, "X_RDKCENTRAL-COM_LastRebootReason", "WAN_Mode_Change") != 0)
-                        {
-                                AUTO_WAN_LOG("RDKB_REBOOT : RebootDevice syscfg_set failed GUI\n");
-                        }
-                        else
-                        {
-                                if (syscfg_commit() != 0)
-                                {
-                                        AUTO_WAN_LOG("RDKB_REBOOT : RebootDevice syscfg_commit failed for ETHWAN mode\n");
-                                }
-                        }
+    if (syscfg_set_commit(NULL, "X_RDKCENTRAL-COM_LastRebootReason", "WAN_Mode_Change") != 0)
+    {
+    	    AUTO_WAN_LOG("RDKB_REBOOT : RebootDevice syscfg_set failed GUI\n");
+    }
 
-
-                        if (syscfg_set(NULL, "X_RDKCENTRAL-COM_LastRebootCounter", buf) != 0)
-                        {
-                                AUTO_WAN_LOG("syscfg_set failed\n");
-                        }
-                        else
-                        {
-                                if (syscfg_commit() != 0)
-                                {
-                                        AUTO_WAN_LOG("syscfg_commit failed\n");
-                                }
-                        }
+    if (syscfg_set_commit(NULL, "X_RDKCENTRAL-COM_LastRebootCounter", "1") != 0)
+    {
+    	    AUTO_WAN_LOG("syscfg_set failed\n");
+    }
 
     /* Need to do reboot the device here */
     system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.RebootDevice string Device");
