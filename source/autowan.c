@@ -124,7 +124,7 @@ void AutoWAN_main()
     static pthread_t AutoWAN_tid;
     IntializeAutoWanConfig();
     #if defined (_BRIDGE_UTILS_BIN_)
-      char buf[ 8 ] = { 0 };
+      char buf[ 8 ];
       if( 0 == syscfg_get( NULL, "mesh_ovs_enable", buf, sizeof( buf ) ) )
       {
           if ( strcmp (buf,"true") == 0 )
@@ -167,9 +167,8 @@ void IntializeAutoWanConfig()
     g_AutoWanRetryInterval  = AUTOWAN_RETRY_INTERVAL;
     
     char out_value[20];
-    int outbufsz = sizeof(out_value);
-    memset(out_value,0,sizeof(out_value));
-    if (!syscfg_get(NULL, "selected_wan_mode", out_value, outbufsz))
+
+    if (!syscfg_get(NULL, "selected_wan_mode", out_value, sizeof(out_value)))
     {
        g_SelectedWanMode = atoi(out_value);
        AUTO_WAN_LOG("AUTOWAN %s Selected WAN mode = %s\n",__FUNCTION__,WanModeStr(g_SelectedWanMode));
@@ -440,17 +439,16 @@ extern token_t sysevent_token_gs;
 int CheckWanStatus(int mode)
 {
    char buff[256] = {0};
-   char command[256] = {0};
+   char command[256];
    char wan_connection_ifname[ETHWAN_INTERFACE_NAME_MAX_LENGTH] = {0};
    FILE *fp;
-   char out_value[20] = {0};
+   char out_value[20];
 
     sysevent_get(sysevent_fd_gs, sysevent_token_gs, "current_wan_state", buff, sizeof(buff));
 
     if (!strcmp(buff, "up")) {
         if(mode == WAN_MODE_ETH)
         {
-           memset(out_value,0,sizeof(out_value));
            syscfg_get(NULL, "wan_physical_ifname", out_value, sizeof(out_value));
 
            AUTO_WAN_LOG("%s - syscfg returned wan_physical_ifname= %s\n",__FUNCTION__,out_value);
@@ -467,7 +465,6 @@ int CheckWanStatus(int mode)
            AUTO_WAN_LOG("%s - wan_connection_ifname= %s\n",__FUNCTION__,wan_connection_ifname);
 
            /* Validate IPv4 Connection on ETHWAN interface */
-           memset(command,0,sizeof(command));
            snprintf(command, sizeof(command), "ifconfig %s |grep -i 'inet ' |awk '{print $2}' |cut -f2 -d:", wan_connection_ifname);
            memset(buff,0,sizeof(buff));
 
@@ -494,7 +491,6 @@ int CheckWanStatus(int mode)
            } // fp == NULL
 
            /* Validate IPv6 Connection on ETHWAN interface */
-           memset(command,0,sizeof(command));
            snprintf(command,sizeof(command), "ifconfig %s |grep -i 'inet6 ' |grep -i 'Global' |awk '{print $3}'", wan_connection_ifname);
            memset(buff,0,sizeof(buff));
 
@@ -580,7 +576,6 @@ int CheckWanStatus(int mode)
         } // fp == NULL
 
         /* Validate IPv6 Connection on DOCSIS interface */
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command), "ifconfig %s |grep -i 'inet6 ' |grep -i 'Global' |awk '{print $3}'", DOCSIS_INF_NAME);
         memset(buff,0,sizeof(buff));
 
@@ -618,7 +613,7 @@ void TryAltWan(int *mode)
 
 #if !defined(AUTO_WAN_ALWAYS_RECONFIG_EROUTER)
     char wanPhyName[20] = {0};
-    char out_value[20] = {0};
+    char out_value[20];
 
      syscfg_get(NULL, "wan_physical_ifname", out_value, sizeof(out_value));
 
@@ -646,14 +641,12 @@ void TryAltWan(int *mode)
      /* During WAN Disruptions XBs were not coming back online without another reboot. Toggle interface between modes */
      AUTO_WAN_LOG("%s - Toggling ethwan_ifname= %s DOWN\n",__FUNCTION__,ethwan_ifname);
 
-     memset(command,0,sizeof(command));
      snprintf(command,sizeof(command),"ip link set dev %s down",ethwan_ifname);
      system(command);
 
      sleep(5);
      AUTO_WAN_LOG("%s - Toggling ethwan_ifname= %s UP\n",__FUNCTION__,ethwan_ifname);
 
-     memset(command,0,sizeof(command));
      snprintf(command,sizeof(command),"ip link set dev %s up",ethwan_ifname);
      system(command);
 
@@ -682,8 +675,6 @@ void TryAltWan(int *mode)
 
             }
 
-          memset(command,0,sizeof(command));
-
           if (g_OvsEnable)
           {
               snprintf(command,sizeof(command),"/usr/bin/bridgeUtils del-port brlan0 %s",ethwan_ifname);
@@ -699,20 +690,16 @@ void TryAltWan(int *mode)
         system(command);
         //  system("brctl delif brlan0 eth3");
 #if defined(_COSA_BCM_ARM_)
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"brctl addif %s %s",wanPhyName, DOCSIS_INF_NAME);
         system(command);
         //  system("brctl addif erouter0 cm0");
 #endif
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"udhcpc -i %s &",ethwan_ifname);
         system(command);    
         //  system("rm -rf /tmp/wan_locked; udhcpc -i eth3 &");
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"sysctl -w net.ipv6.conf.%s.accept_ra=2",ethwan_ifname);
         system(command);
         //  system("sysctl -w net.ipv6.conf.eth3.accept_ra=2");
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"udhcpc -i %s &",ethwan_ifname);
         system(command);
         //  system("udhcpc -i eth3 &");
@@ -746,15 +733,12 @@ void TryAltWan(int *mode)
 #if defined(_COSA_BCM_ARM_)
         AUTO_WAN_LOG("%s - mode= %s wanPhyName= %s\n",__FUNCTION__,WanModeStr(WAN_MODE_DOCSIS),wanPhyName);
 
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"brctl delif %s %s",wanPhyName, DOCSIS_INF_NAME);
         system(command);
         //system("brctl delif erouter0 cm0");
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"udhcpc -i %s &",DOCSIS_INF_NAME);
         system(command);    
         //system("/tmp/wan_locked; udhcpc -i cm0 &");
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"sysctl -w net.ipv6.conf.%s.accept_ra=2",DOCSIS_INF_NAME);
         system(command);
         //system("sysctl -w net.ipv6.conf.cm0.accept_ra=2");
@@ -768,7 +752,6 @@ void TryAltWan(int *mode)
 void RevertTriedConfig(int mode)
 {
     char command[64+5];
-    memset(command,0,sizeof(command));
     char ethwan_ifname[ETHWAN_INTERFACE_NAME_MAX_LENGTH] = {0};
 
     if(mode == WAN_MODE_DOCSIS)
@@ -798,27 +781,21 @@ void RevertTriedConfig(int mode)
 
             }
         #endif
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"ifconfig %s down",ethwan_ifname);
         system(command);
         //system("ifconfig eth3 down");
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"ip addr flush dev %s",ethwan_ifname);
         system(command);
         //system("ip addr flush dev eth3");
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"ip -6 addr flush dev %s",ethwan_ifname);
         system(command);
         //system("ip -6 addr flush dev eth3");
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"sysctl -w net.ipv6.conf.%s.accept_ra=0",ethwan_ifname);
         system(command);
         //system("sysctl -w net.ipv6.conf.eth3.accept_ra=0");
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"ifconfig %s up",ethwan_ifname);
         system(command);
         //system("ifconfig eth3 up");
-        memset(command,0,sizeof(command));
         #if defined (_BRIDGE_UTILS_BIN_)
 
           if (g_OvsEnable)
@@ -836,7 +813,6 @@ void RevertTriedConfig(int mode)
         system(command);
         //system("brctl addif brlan0 eth3");
 #if defined(_COSA_BCM_ARM_)
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"brctl addif erouter0 %s",DOCSIS_INF_NAME);
         system(command);
         //system("brctl addif erouter0 cm0");
@@ -845,19 +821,15 @@ void RevertTriedConfig(int mode)
     else
     {
 #if defined(_COSA_BCM_ARM_)
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"ip addr flush dev %s",DOCSIS_INF_NAME);
         system(command);
         //system("ip addr flush dev cm0");
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"ip -6 addr flush dev %s",DOCSIS_INF_NAME);
         system(command);
         //system("ip -6 addr flush dev cm0");
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"sysctl -w net.ipv6.conf.%s.accept_ra=0",DOCSIS_INF_NAME);
         system(command);
         //system("sysctl -w net.ipv6.conf.cm0.accept_ra=0");
-        memset(command,0,sizeof(command));
         snprintf(command,sizeof(command),"brctl addif erouter0 %s",DOCSIS_INF_NAME);
         system(command);
         //system("brctl addif erouter0 cm0");
@@ -876,7 +848,7 @@ CosaDmlEthWanSetEnable
     //if (bEnable != bGetStatus)
 #if !defined(AUTO_WAN_ALWAYS_RECONFIG_EROUTER)
     {
-       char command[64] = {0};
+       char command[64];
        if(bEnable == FALSE)
        {
         system("ifconfig erouter0 down");

@@ -581,7 +581,7 @@ static void *GWPEthWan_linkstate_threadfunc(void *data)
             free(buff);
         return -1;
     }
-    sprintf(command, "cat /sys/class/net/%s/operstate", wanPhyName);
+    snprintf(command, sizeof(command), "cat /sys/class/net/%s/operstate", wanPhyName);
 
     while(1)
     {
@@ -595,7 +595,6 @@ static void *GWPEthWan_linkstate_threadfunc(void *data)
         */
        sysevent_get(sysevent_fd_gs, sysevent_token_gs, "utopia_restart", buf, sizeof(buf));
        is_mode_switch = atoi(buf);
-       memset(buf, 0, sizeof(buf));
        sysevent_get(sysevent_fd_gs, sysevent_token_gs, "wan-restarting", buf, sizeof(buf));
        is_wan_restart = atoi(buf);
 
@@ -698,7 +697,7 @@ static void *GWPEthWan_linkstate_threadfunc(void *data)
         return (void *) -1;
     }
     //sprintf(command, "cat /sys/class/net/%s/operstate", wanPhyName);
-    sprintf(command, "ethtool %s | grep \"Link detected\" | cut -d ':' -f2 | cut -d ' ' -f2", wanPhyName);
+    snprintf(command, sizeof(command), "ethtool %s | grep \"Link detected\" | cut -d ':' -f2 | cut -d ' ' -f2", wanPhyName);
 
     while(1)
     {
@@ -844,7 +843,7 @@ static void GWPEthWan_EnterBridgeMode(void)
         }
     }
     system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool false");
-    char command[256] = {0};
+    char command[256];
     snprintf(command,sizeof(command),"sysevent set bridge_mode %d",active_mode) ;
     system(command);
     system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
@@ -861,7 +860,7 @@ static void GWPEthWan_EnterRouterMode(void)
     GWPROVETHWANLOG(" Entry %s \n", __FUNCTION__);
 
 //    bridge_mode = 0;
-    char command[256] = {0};
+    char command[256];
     snprintf(command,sizeof(command),"sysevent set bridge_mode %d",BRMODE_ROUTER) ;
     system(command);
 
@@ -1065,7 +1064,6 @@ static void *GWPEthWan_sysevent_handler(void *data)
             {
 		char cmd[100+5];
 		    GWPROVETHWANLOG("received notification event %s\n", name);
-                    memset(cmd,0,sizeof(cmd));
 		    sprintf(cmd, "ip6tables -I OUTPUT -o %s -p icmpv6 -j DROP", ethwan_ifname);
     		    system(cmd);
 		    GWPROVETHWANLOG("cmd %s\n", cmd);
@@ -1209,8 +1207,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
                         }
                     }
                     char command[100+5];
-                    memset(command,0,sizeof(command));
-                    sprintf(command, "sysctl -w net.ipv6.conf.%s.disable_ipv6=1", ethwan_ifname); // Fix: RDKB-21410, disabling IPv6 for ethwan port
+                    snprintf(command, sizeof(command), "sysctl -w net.ipv6.conf.%s.disable_ipv6=1", ethwan_ifname); // Fix: RDKB-21410, disabling IPv6 for ethwan port
                     printf("****************value of command = %s**********************\n", command);
                     system(command);
 		    system("touch /tmp/phylink_wan_state_up");
@@ -1421,7 +1418,7 @@ static int GWP_act_ProvEntry_callback()
 #if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
     system("/usr/bin/apply_board_defaults.sh");
 #endif
-    char command[50];
+    char command[100];
     char wanPhyName[20];
     char out_value[20];
     int outbufsz = sizeof(out_value);
@@ -1437,18 +1434,16 @@ static int GWP_act_ProvEntry_callback()
        return -1;
     }
 
-    memset(command,0,sizeof(command));
-    sprintf(command, "ifconfig %s down", ETHWAN_DEF_INTF_NAME);
+    snprintf(command, sizeof(command), "ifconfig %s down", ETHWAN_DEF_INTF_NAME);
     printf("****************value of command = %s**********************\n", command);
     system(command);
 
-    memset(command,0,sizeof(command));
-    sprintf(command, "ip link set %s name %s", ETHWAN_DEF_INTF_NAME, wanPhyName);
+    snprintf(command, sizeof(command), "ip link set %s name %s", ETHWAN_DEF_INTF_NAME, wanPhyName);
     printf("****************value of command = %s**********************\n", command);
     system(command);
-    memset(command,0,sizeof(command));
-    sprintf(command, "ifconfig %s up", wanPhyName);
-    printf("************************value of command = %s***********************\n", command);
+
+    snprintf(command, sizeof(command), "ifconfig %s up", wanPhyName);
+    printf("****************value of command = %s**********************\n", command);
     system(command);
 
     sysevent_fd = sysevent_open("127.0.0.1", SE_SERVER_WELL_KNOWN_PORT, SE_VERSION, "gw_prov_ethwan", &sysevent_token);
@@ -1552,100 +1547,86 @@ static int GWP_act_ProvEntry_callback()
     char wan_mac[18];// = {0};
     sprintf(wan_mac, "%02x:%02x:%02x:%02x:%02x:%02x",macAddr.hw[0],macAddr.hw[1],macAddr.hw[2],macAddr.hw[3],macAddr.hw[4],macAddr.hw[5]);
 
-    memset(command,0,sizeof(command));
-    sprintf(command, "ifconfig %s down", ethwan_ifname);
+    snprintf(command, sizeof(command), "ifconfig %s down", ethwan_ifname);
     system(command);
    
 
 #if !defined(INTEL_PUMA7)
-    memset(command,0,sizeof(command));
-    sprintf(command, "vlan_util del_interface brlan0 %s", ethwan_ifname);
+    snprintf(command, sizeof(command), "vlan_util del_interface brlan0 %s", ethwan_ifname);
     system(command);
 #endif
 
 #ifdef _COSA_BCM_ARM_
-    sprintf(command, "ifconfig %s down; ip link set %s name cm0", wanPhyName,wanPhyName);
+    snprintf(command, sizeof(command), "ifconfig %s down; ip link set %s name cm0", wanPhyName, wanPhyName);
 #else
-    sprintf(command, "ifconfig %s down; ip link set %s name dummy-rf", wanPhyName,wanPhyName);
+    snprintf(command, sizeof(command), "ifconfig %s down; ip link set %s name dummy-rf", wanPhyName, wanPhyName);
 #endif
     system(command);
-    memset(command,0,sizeof(command));
-    #if 0
-    sprintf(command, "ip link set eth0 name %s", wanPhyName);
-    #else
-        sprintf(command, "brctl addbr %s; brctl addif %s %s", wanPhyName,wanPhyName,ethwan_ifname);
-    #endif
+
+#if 0
+    snprintf(command, sizeof(command), "ip link set eth0 name %s", wanPhyName);
+#else
+    snprintf(command, sizeof(command), "brctl addbr %s; brctl addif %s %s", wanPhyName,wanPhyName,ethwan_ifname);
+#endif
     printf("****************value of command = %s**********************\n", command);
     system(command);
 
 #if defined(INTEL_PUMA7)
-    memset(command,0,sizeof(command));
     snprintf(command, sizeof(command), "brctl addif %s dpdmta1",wanPhyName);
     printf("****************value of command = %s**********************\n", command);
     system(command);
-    memset(command,0,sizeof(command));
     snprintf(command, sizeof(command), "echo 1 > /sys/devices/virtual/net/%s/bridge/nf_disable_iptables",wanPhyName);
     printf("****************value of command = %s**********************\n", command);
     system(command);
-    memset(command,0,sizeof(command));
     snprintf(command, sizeof(command), "echo 1 > /sys/devices/virtual/net/%s/bridge/nf_disable_ip6tables",wanPhyName);
     printf("****************value of command = %s**********************\n", command);
     system(command);
-    memset(command,0,sizeof(command));
     snprintf(command, sizeof(command), "echo 1 > /sys/devices/virtual/net/%s/bridge/nf_disable_arptables",wanPhyName);
     printf("****************value of command = %s**********************\n", command);
     system(command);
 #endif
   
-    memset(command,0,sizeof(command));
-    sprintf(command, "sysctl -w net.ipv6.conf.%s.autoconf=0", ethwan_ifname); // Fix: RDKB-22835, disabling IPv6 for ethwan port
+    snprintf(command, sizeof(command), "sysctl -w net.ipv6.conf.%s.autoconf=0", ethwan_ifname); // Fix: RDKB-22835, disabling IPv6 for ethwan port
     printf("****************value of command = %s**********************\n", command);
     system(command);
-    memset(command,0,sizeof(command));
-    sprintf(command, "sysctl -w net.ipv6.conf.%s.disable_ipv6=1", ethwan_ifname); // Fix: RDKB-22835, disabling IPv6 for ethwan port
+
+    snprintf(command, sizeof(command), "sysctl -w net.ipv6.conf.%s.disable_ipv6=1", ethwan_ifname); // Fix: RDKB-22835, disabling IPv6 for ethwan port
     printf("****************value of command = %s**********************\n", command);
     system(command);
-    memset(command,0,sizeof(command));
-    sprintf(command, "ifconfig %s hw ether %s", ethwan_ifname,wan_mac);
-    printf("************************value of command = %s***********************\n", command);
+
+    snprintf(command, sizeof(command), "ifconfig %s hw ether %s", ethwan_ifname,wan_mac);
+    printf("****************value of command = %s**********************\n", command);
     system(command);
-    memset(command,0,sizeof(command));
-    sprintf(command, "ip6tables -I OUTPUT -o %s -p icmpv6 -j DROP", ethwan_ifname);
+
+    snprintf(command, sizeof(command), "ip6tables -I OUTPUT -o %s -p icmpv6 -j DROP", ethwan_ifname);
     system(command);
-    memset(command,0,sizeof(command));
+
 #ifdef _COSA_BCM_ARM_
     system("ifconfig cm0 up");
-    memset(command,0,sizeof(command));
-    sprintf(command, "brctl addbr %s; brctl addif %s cm0", wanPhyName,wanPhyName);
+    snprintf(command, sizeof(command), "brctl addbr %s; brctl addif %s cm0", wanPhyName,wanPhyName);
     printf("****************value of command = %s**********************\n", command);
     system(command);
-    memset(command,0,sizeof(command));
-    sprintf(command, "sysctl -w net.ipv6.conf.cm0.disable_ipv6=1");
+    snprintf(command, sizeof(command), "sysctl -w net.ipv6.conf.cm0.disable_ipv6=1");
     printf("****************value of command = %s**********************\n", command);
     system(command);
 #endif
 
-    memset(command,0,sizeof(command));
-    sprintf(command, "ifconfig %s down", wanPhyName);
+    snprintf(command, sizeof(command), "ifconfig %s down", wanPhyName);
     system(command);
-    memset(command,0,sizeof(command));
-    sprintf(command, "ifconfig %s hw ether %s", wanPhyName,wan_mac);
+    snprintf(command, sizeof(command), "ifconfig %s hw ether %s", wanPhyName,wan_mac);
     printf("************************value of command = %s***********************\n", command);
     system(command);
-    memset(command,0,sizeof(command));
     platform_hal_GetBaseMacAddress(wan_mac);
     printf("************************cmmac = %s***********************\n", wan_mac);
-    sprintf(command, "sysevent set eth_wan_mac %s", wan_mac);
+    snprintf(command, sizeof(command), "sysevent set eth_wan_mac %s", wan_mac);
     system(command);
       // setNetworkDeviceMacAddress(ER_NETDEVNAME,&macAddr);
-    memset(command,0,sizeof(command));
-    sprintf(command, "ifconfig %s up", wanPhyName);
+    snprintf(command, sizeof(command), "ifconfig %s up", wanPhyName);
     printf("************************value of command = %s************************\n", command);
     system(command);
               
 #if defined(INTEL_PUMA7) || defined(_CBR2_PRODUCT_REQ_)
-    memset(command,0,sizeof(command));
-    sprintf(command, "ifconfig %s up",ethwan_ifname);
+    snprintf(command, sizeof(command), "ifconfig %s up",ethwan_ifname);
     printf("************************value of command = %s***********************\n", command);
     system(command);
 #endif
@@ -1662,8 +1643,7 @@ static int GWP_act_ProvEntry_callback()
     active_mode = sysevent_bridge_mode;
 
     GWPROVETHWANLOG(" active_mode %d \n", active_mode);
-    memset(command,0,sizeof(command));
-    sprintf(command, "sysevent set bridge_mode %d", sysevent_bridge_mode);
+    snprintf(command, sizeof(command), "sysevent set bridge_mode %d", sysevent_bridge_mode);
 
     system(command);
 
