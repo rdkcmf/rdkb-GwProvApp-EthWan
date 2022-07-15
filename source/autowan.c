@@ -64,6 +64,7 @@ int g_AutoWanRetryCnt 		= 0;
 int g_AutoWanRetryInterval 	= 0;
 
 #if defined (_BRIDGE_UTILS_BIN_)
+#define ONEWIFI_ENABLED "/etc/onewifi_enabled"
     int g_OvsEnable             = 0;
 #endif
 void SetCurrentWanMode(int mode);
@@ -135,6 +136,11 @@ void AutoWAN_main()
       {
           AUTO_WAN_LOG("syscfg_get failed to retrieve ovs_enable\n");
 
+      }
+      if( 0 == access( ONEWIFI_ENABLED, F_OK ) )
+      {
+          AUTO_WAN_LOG("g_OvsEnable is set to 1 for OneWifi build\n");
+          g_OvsEnable = 1;
       }
     #endif 
     thread_status = pthread_create(&AutoWAN_tid, NULL, WanMngrThread, NULL);
