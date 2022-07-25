@@ -996,6 +996,7 @@ static void *GWPEthWan_sysevent_handler(void *data)
 #if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)
     GwProvSetLED(YELLOW, BLINK, 1);
 #endif
+   sysevent_set(sysevent_fd, sysevent_token, "gw_prov-status", "up", 0);
    for (;;)
    {
         unsigned char name[25], val[42],buf[BUF_SIZE];;
